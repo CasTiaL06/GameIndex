@@ -35,9 +35,13 @@ public sealed partial class MainWindow : Window
     private string _typeBuf = "";
     private DateTime _typeAt = DateTime.MinValue;
 
-    public MainWindow(AppHost host, bool startHidden)
+    private string? _pendingCommand;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _jlTimer;
+
+    public MainWindow(AppHost host, bool startHidden, string? initialCommand = null)
     {
         _h = host;
+        _pendingCommand = initialCommand;
         ViewModel = new MainViewModel(host, Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread());   // must exist before InitializeComponent (x:Bind)
         InitializeComponent();
 
@@ -69,6 +73,8 @@ public sealed partial class MainWindow : Window
 
         ViewModel.SelectionChanged += OnSelectionChanged;
         ViewModel.Reloaded += SyncControls;
+        ViewModel.Reloaded += ScheduleJumpList;
+        ViewModel.SelectedUpdated += () => { UpdateBackground(); UpdateArt(); };
 
         var clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
         clock.Tick += (_, _) => ClockText.Text = DateTime.Now.ToString("t", System.Globalization.CultureInfo.CurrentCulture);
@@ -81,6 +87,7 @@ public sealed partial class MainWindow : Window
             if (_h.Paths.Warning is not null) ViewModel.StatusText = _h.Paths.Warning;
             ViewBar.SelectedItem = ViewBar.Items[(int)ViewModel.ViewMode];
             await ViewModel.ReloadAsync();
+            if (_pendingCommand is not null) { var c = _pendingCommand; _pendingCommand = null; RunCommand(c); }
             _h.Artwork.ExeIconProvider = Platform.ExtractExeIconAsync;
             _h.Tracker.Start();
             _h.Discovery.StartBackground();
@@ -89,6 +96,44 @@ public sealed partial class MainWindow : Window
         };
 
         if (startHidden) DispatcherQueue.TryEnqueue(() => AppWindow.Hide());
+    }
+
+    // ---------- taskbar / single-instance commands ----------
+    /// <summary>Called from the pipe server thread (jump-list clicks, second launches).</summary>
+    public void HandleCommand(string msg) => DispatcherQueue.TryEnqueue(() => RunCommand(msg));
+
+    private void RunCommand(string msg)
+    {
+        if (msg == "scan") { _ = ViewModel.ScanNowAsync(); return; }
+        if (msg.StartsWith("launch:") && long.TryParse(msg[7..], out var id))
+        {
+            var v = ViewModel.AllGames.FirstOrDefault(g => g.Id == id);
+            if (v is not null) { ViewModel.JumpTo(v); ViewModel.Launch(v); }
+            return;
+        }
+        ShowFromTray();                                     // "show"
+    }
+
+    private void ScheduleJumpList()
+    {
+        if (_jlTimer is null)
+        {
+            _jlTimer = DispatcherQueue.CreateTimer();
+            _jlTimer.Interval = TimeSpan.FromSeconds(3);
+            _jlTimer.IsRepeating = false;
+            _jlTimer.Tick += (_, _) => UpdateJumpList();
+        }
+        _jlTimer.Stop(); _jlTimer.Start();                   // debounce: library reloads can come in bursts
+    }
+
+    private void UpdateJumpList()
+    {
+        if (!_h.Settings.Current.TaskbarJumpList) { Taskbar.Clear(); return; }
+        var all = ViewModel.AllGames.Where(v => v.Model.IsInstalled).ToList();
+        var recent = all.Where(v => v.Model.LastPlayedUtc is not null).Take(6).ToList();
+        var favs = all.Where(v => v.IsFavorite && !recent.Contains(v)).Take(6).ToList();
+        JumpItem Map(GameViewModel v) => new(v.Title, $"--launch {v.Id}", v.Model.ExePath);
+        Taskbar.Update(recent.Select(Map), favs.Select(Map));
     }
 
     // ---------- appearance ----------
@@ -107,6 +152,7 @@ public sealed partial class MainWindow : Window
     private void ApplyAppearance()
     {
         ApplyLanguage();
+        ScheduleJumpList();
         var s = _h.Settings.Current;
         ThemeService.Apply(s, this, Root);
         DimOverlay.Opacity = Math.Clamp(s.BackgroundDimPercent / 100.0, 0, 0.9);
@@ -153,9 +199,18 @@ public sealed partial class MainWindow : Window
         sb.Begin();
     }
 
+    private void UpdateArt()
+    {
+        var sel = ViewModel.Selected;
+        var art = sel is not null && sel.BackgroundImage is null ? sel.ArtworkImage : null;
+        BgArt.Source = art;
+        BgArt.Visibility = art is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
     private void OnSelectionChanged()
     {
         UpdateBackground();
+        UpdateArt();
         CenterSelected();
         _syncing = true;
         LibraryGrid.SelectedItem = ViewModel.Selected;

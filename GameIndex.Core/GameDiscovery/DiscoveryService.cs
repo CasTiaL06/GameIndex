@@ -35,7 +35,9 @@ public sealed class DiscoveryService : IDisposable
     }
 
     /// <summary>Scans every enabled platform. Safe to call repeatedly (a running scan is not duplicated).</summary>
-    public async Task ScanAsync(CancellationToken ct = default)
+    public Task ScanAsync(CancellationToken ct = default) => Task.Run(() => ScanCoreAsync(ct), ct);   // never on the UI thread
+
+    private async Task ScanCoreAsync(CancellationToken ct)
     {
         if (!await _gate.WaitAsync(0, ct)) return;
         IsScanning = true;

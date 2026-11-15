@@ -15,7 +15,8 @@ public sealed partial class GameViewModel : ObservableObject
 
     private readonly Action<GameViewModel> _select, _launch;
     private string? _coverPath, _bgPath, _iconPath;
-    private BitmapImage? _cover, _bg, _icon;
+    private string? _artPath;
+    private BitmapImage? _cover, _bg, _icon, _art;
 
     public Game Model { get; private set; }
 
@@ -41,7 +42,10 @@ public sealed partial class GameViewModel : ObservableObject
     }
 
     public ImageSource? CoverImage => Load(Model.CoverPath, ref _coverPath, ref _cover, 320);
-    public ImageSource? BackgroundImage => Load(Model.BackgroundPath ?? Model.CoverPath, ref _bgPath, ref _bg, 1920);
+    /// <summary>Only a real wide background/hero image. Covers and icons are never stretched over the whole window.</summary>
+    public ImageSource? BackgroundImage => Load(Model.BackgroundPath, ref _bgPath, ref _bg, 1920);
+    /// <summary>Cover (or icon) shown fitted, un-cropped, when the game has no background image.</summary>
+    public ImageSource? ArtworkImage => Load(Model.CoverPath ?? Model.IconPath, ref _artPath, ref _art, 640);
     public ImageSource? IconImage => Load(Model.IconPath, ref _iconPath, ref _icon, 128);
     public bool HasCover => CoverImage is not null;
 

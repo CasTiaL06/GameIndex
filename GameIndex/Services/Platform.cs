@@ -8,8 +8,29 @@ namespace GameIndex.Services;
 
 public static class Platform
 {
-    /// <summary>Extracts the shell icon of the game's EXE to Assets/Icons (used as fallback artwork).</summary>
-    public static async Task<string?> ExtractExeIconAsync(Game g, string exePath, CancellationToken ct)
+    [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern uint ExtractIconEx(string file, int index, IntPtr[]? large, IntPtr[]? small, uint count);
+
+    /// <summary>True when the EXE really contains an icon resource (so the shell will not hand us its generic "blank app" icon).</summary>
+    private static bool HasEmbeddedIcon(string exe)
+    {
+        try { return ExtractIconEx(exe, -1, null, null, 0) > 0; } catch { return true; }
+    }
+
+    /// <summary>Tries each candidate EXE until one yields a real icon; saves it as PNG under Assets/Icons.</summary>
+    public static async Task<string?> ExtractExeIconAsync(Game g, IReadOnlyList<string> exes, CancellationToken ct)
+    {
+        foreach (var exe in exes)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!HasEmbeddedIcon(exe)) continue;
+            var r = await ExtractOneAsync(g, exe);
+            if (r is not null) return r;
+        }
+        return null;
+    }
+
+    private static async Task<string?> ExtractOneAsync(Game g, string exePath)
     {
         try
         {
@@ -27,7 +48,7 @@ public static class Platform
             await enc.FlushAsync();
             return dest;
         }
-        catch (Exception ex) { Log.Warn($"Icon extraction failed for {g.Title}: {ex.Message}"); return null; }
+        catch (Exception ex) { Log.Warn($"Icon extraction failed for {g.Title} ({Path.GetFileName(exePath)}): {ex.Message}"); return null; }
     }
 
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";

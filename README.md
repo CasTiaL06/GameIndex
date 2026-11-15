@@ -111,3 +111,22 @@ Some technical messages coming from the engine (e.g. backup file paths, platform
 ## Transparency
 Settings → Appearance: *Enable transparency effects* turns all see-through effects off (solid windows), *Settings / Details window opacity*
 controls how opaque those pop-up windows are (default 95 %), and *Panel transparency* controls the glass panels.
+
+## Taskbar integration
+* GameIndex sets its own AppUserModelID (`GameIndex.Launcher`), so the taskbar button, a pinned icon and the jump list always belong together.
+  Windows does not let apps pin themselves: right-click the taskbar icon → **Pin to taskbar**.
+* **Jump list** (right-click the taskbar icon): *Recent games*, *Favorite games*, and tasks *Open GameIndex* / *Scan for games*.
+  Clicking a game launches it through the already running GameIndex (single-instance named pipe); the window is not forced to the front.
+  Toggle in Settings → Application. If the jump list cannot be written it is skipped silently (see `Logs/`).
+* With *Minimize to system tray* enabled the taskbar button disappears while hidden and the tray icon takes over.
+
+## Icons / artwork pipeline
+For every game without cover art, in this order: Steam CDN/local cache → logo/`.ico` files shipped in the game folder (Xbox packages, GOG) →
+the embedded icon of up to 8 executables found in the game folder (a candidate without an icon resource is skipped, so the generic Windows
+icon is never used; Epic/Riot launcher stubs are therefore bypassed) → a per-game coloured card with the game's initials.
+Failed lookups are not repeated for 7 days; *Refresh Information* on a game retries immediately. Covers whose proportions differ from a
+poster are fitted completely instead of being cropped, and games without a wide background image show their cover/icon fitted, never zoomed.
+
+## Responsiveness
+All scanning, artwork, size, DLC, achievement and database work runs on thread-pool threads; settings are written to disk once after you stop
+moving a slider; UI text translation visits each element exactly once.

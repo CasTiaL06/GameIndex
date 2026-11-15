@@ -30,7 +30,10 @@ public sealed class GameInfoService
 
     private IntegrationContext Ctx() => new(_settings.GetSteamApiKey(), _settings.Current.SteamId64, _http, new Dictionary<string, string>());
 
-    public async Task<string> RefreshGameAsync(long id, RefreshKind kinds, CancellationToken ct = default)
+    /// <summary>Always runs on a thread-pool thread (file system walks, DB and HTTP must not touch the UI thread).</summary>
+    public Task<string> RefreshGameAsync(long id, RefreshKind kinds, CancellationToken ct = default) => Task.Run(() => RefreshGameCoreAsync(id, kinds, ct), ct);
+
+    private async Task<string> RefreshGameCoreAsync(long id, RefreshKind kinds, CancellationToken ct)
     {
         var g = _db.GetGame(id);
         if (g is null) return "Game not found.";
@@ -64,7 +67,9 @@ public sealed class GameInfoService
     }
 
     /// <summary>Fills in whatever is missing or stale. Called after every library scan.</summary>
-    public async Task RefreshStaleAsync(CancellationToken ct = default)
+    public Task RefreshStaleAsync(CancellationToken ct = default) => Task.Run(() => RefreshStaleCoreAsync(ct), ct);
+
+    private async Task RefreshStaleCoreAsync(CancellationToken ct)
     {
         if (!await _staleGate.WaitAsync(0, ct)) return;
         try
@@ -76,8 +81,9 @@ public sealed class GameInfoService
                 ct.ThrowIfCancellationRequested();
                 var kinds = RefreshKind.None;
                 if (g.SizeBytes is null || (auto && DateTime.UtcNow - g.SizeUpdatedUtc > TimeSpan.FromDays(7))) kinds |= RefreshKind.Size;
-                if (g.CoverPath is null && g.IconPath is null) kinds |= RefreshKind.Artwork;
-                if (g.BackgroundPath is null && g.PlatformId == PlatformIds.Steam) kinds |= RefreshKind.Artwork;
+                // artwork is retried at most once a week per game (manual "Refresh Information" always retries)
+                var artTried = long.TryParse(_db.GetSetting($"art_tried_{g.Id}"), out var at) && Format.NowUnix() - at < 7 * 86400;
+                if (!artTried && ((g.CoverPath is null && g.IconPath is null) || (g.BackgroundPath is null && g.PlatformId == PlatformIds.Steam))) kinds |= RefreshKind.Artwork;
                 if (auto && !g.IsManual)
                 {
                     if (DateTime.UtcNow - g.StatsUpdatedUtc > TimeSpan.FromHours(1) || g.StatsUpdatedUtc is null) kinds |= RefreshKind.Stats;
@@ -85,7 +91,7 @@ public sealed class GameInfoService
                     if (g.PlatformId == PlatformIds.Steam && hasKey && (g.AchUpdatedUtc is null || DateTime.UtcNow - g.AchUpdatedUtc > TimeSpan.FromDays(1))) kinds |= RefreshKind.Achievements;
                 }
                 if (kinds == RefreshKind.None) continue;
-                try { await RefreshGameAsync(g.Id, kinds, ct); await Task.Delay(120, ct); } // gentle on web APIs
+                try { await RefreshGameCoreAsync(g.Id, kinds, ct); await Task.Delay(120, ct); } // gentle on web APIs
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex) { Log.Warn($"Refresh of '{g.Title}' failed: {ex.Message}"); }
             }

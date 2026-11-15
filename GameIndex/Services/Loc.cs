@@ -46,7 +46,8 @@ public static class Loc
     public static void Apply(DependencyObject? root)
     {
         if (root is null) return;
-        try { Visit(root, 0); } catch { /* translation must never break the UI */ }
+        var seen = new HashSet<DependencyObject>(ReferenceEqualityComparer.Instance);   // each element exactly once (logical + visual walks overlap)
+        try { Visit(root, 0, seen); } catch { /* translation must never break the UI */ }
     }
 
     public static void FixText(MenuFlyoutItem item) => Fix(item, "Text", item.Text, t => item.Text = t);
@@ -68,9 +69,9 @@ public static class Loc
         if (target != current) set(target);
     }
 
-    private static void Visit(DependencyObject d, int depth)
+    private static void Visit(DependencyObject d, int depth, HashSet<DependencyObject> seen)
     {
-        if (depth > 60) return;
+        if (depth > 80 || !seen.Add(d)) return;
         switch (d)
         {
             case TextBlock tb:
@@ -87,7 +88,7 @@ public static class Loc
                 foreach (var it in x.Items) if (it is ComboBoxItem ci && ci.Content is string cs) Fix(ci, "Content", cs, t => ci.Content = t);
                 break;
             case Pivot p:
-                foreach (var it in p.Items) if (it is PivotItem pi) { if (pi.Header is string hs) Fix(pi, "Header", hs, t => pi.Header = t); if (pi.Content is DependencyObject pc) Visit(pc, depth + 1); }
+                foreach (var it in p.Items) if (it is PivotItem pi) { if (pi.Header is string hs) Fix(pi, "Header", hs, t => pi.Header = t); if (pi.Content is DependencyObject pc) Visit(pc, depth + 1, seen); }
                 break;
             case SelectorBar sb:
                 foreach (var it in sb.Items) Fix(it, "Text", it.Text, t => it.Text = t);
@@ -104,14 +105,14 @@ public static class Loc
         // logical children (works even when a control's template has not been applied yet, e.g. collapsed panels)
         switch (d)
         {
-            case Panel pn: foreach (var c in pn.Children) Visit(c, depth + 1); break;
-            case Border b when b.Child is not null: Visit(b.Child, depth + 1); break;
-            case ContentControl cc when cc.Content is DependencyObject co: Visit(co, depth + 1); break;
+            case Panel pn: foreach (var c in pn.Children) Visit(c, depth + 1, seen); break;
+            case Border b when b.Child is not null: Visit(b.Child, depth + 1, seen); break;
+            case ContentControl cc when cc.Content is DependencyObject co: Visit(co, depth + 1, seen); break;
             case ContentDialog: break;
         }
         // realized visual children (list items, template parts)
         var n = VisualTreeHelper.GetChildrenCount(d);
-        for (var i = 0; i < n; i++) Visit(VisualTreeHelper.GetChild(d, i), depth + 1);
+        for (var i = 0; i < n; i++) Visit(VisualTreeHelper.GetChild(d, i), depth + 1, seen);
     }
 
     private static void HeaderFix(object owner, object? header, Action<string> set)
@@ -175,7 +176,8 @@ public static class Loc
         ["Category (optional, type to create a new one)"] = "Kategori (isteğe bağlı, yeni oluşturmak için yazın)",
         ["Custom cover image (optional)"] = "Özel kapak görseli (isteğe bağlı)", ["Custom background image (optional)"] = "Özel arka plan görseli (isteğe bağlı)",
         ["Track playtime for any process in the game's folder (for launcher EXEs that start the real game)"] = "Oyun klasöründeki herhangi bir işlem için süre takibi yap (asıl oyunu başlatan başlatıcı EXE'ler için)",
-        ["Browse…"] = "Gözat…", ["That executable does not exist."] = "Bu çalıştırılabilir dosya mevcut değil.",
+        ["Browse…"] = "Gözat…", ["Recent games"] = "Son oynanan oyunlar", ["Favorite games"] = "Favori oyunlar", ["Open GameIndex"] = "GameIndex'i aç",
+        ["Taskbar jump list: show recent and favorite games when right-clicking the taskbar icon"] = "Görev çubuğu atlama listesi: görev çubuğu simgesine sağ tıklayınca son oynananları ve favorileri göster", ["That executable does not exist."] = "Bu çalıştırılabilir dosya mevcut değil.",
         ["This game launches through its platform (login, DRM, cloud saves). Title, category and artwork edits apply; the executable is only used for games without a platform launch method."] =
             "Bu oyun platformu üzerinden başlatılır (giriş, DRM, bulut kayıtları). Başlık, kategori ve görsel düzenlemeleri geçerlidir; EXE yalnızca platform başlatma yöntemi olmayan oyunlarda kullanılır.",
         // settings

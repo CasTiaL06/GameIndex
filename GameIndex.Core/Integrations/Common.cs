@@ -160,6 +160,27 @@ public static class ExeFinder
         @"unins|uninst|setup|install|redist|vcredist|dxsetup|dotnet|crash|report|helper|updater|bootstrap|cef|eac|easyanticheat|battleye|vc_|ue4prereq|prereq|diagnostic|benchmark|support",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
 
+    /// <summary>Up to <paramref name="take"/> plausible game executables (largest first) – used to find an icon. Bounded: never walks more than ~3000 files.</summary>
+    public static IReadOnlyList<string> FindCandidates(string dir, int maxDepth = 4, int take = 8)
+    {
+        var found = new List<FileInfo>();
+        var budget = 3000;
+        void Walk(string d, int depth)
+        {
+            if (budget <= 0) return;
+            try
+            {
+                foreach (var f in new DirectoryInfo(d).EnumerateFiles("*.exe")) { budget--; if (!Ignore.IsMatch(f.Name)) found.Add(f); }
+                if (depth >= maxDepth) return;
+                foreach (var sub in Directory.EnumerateDirectories(d))
+                    if (!Ignore.IsMatch(Path.GetFileName(sub))) Walk(sub, depth + 1);
+            }
+            catch { }
+        }
+        try { if (Directory.Exists(dir)) Walk(dir, 0); } catch { }
+        return found.OrderByDescending(f => f.Length).Take(take).Select(f => f.FullName).ToList();
+    }
+
     public static string? FindMainExe(string dir, int maxDepth = 2)
     {
         try

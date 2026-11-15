@@ -3,6 +3,7 @@ using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using GameIndex.Core.Integrations;
 using GameIndex.Core.Settings;
+using Microsoft.UI.Dispatching;
 
 namespace GameIndex.ViewModels;
 
@@ -22,9 +23,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly AppHost _h;
     private readonly Action _applied;
     private bool _loading = true;
+    private readonly DispatcherQueueTimer _debounce;
+    private bool _lastStartWithWindows;
 
     [ObservableProperty] private int _themeIndex;
     [ObservableProperty] private string _accentHex = "#65D9FF";
+    [ObservableProperty] private bool _taskbarJumpList = true;
     [ObservableProperty] private int _languageIndex = 2;
     [ObservableProperty] private bool _transparencyEnabled = true;
     [ObservableProperty] private double _overlayOpacity = 95;
@@ -57,13 +61,22 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     private static readonly string[] Themes = ["Dark", "Light", "System"], Langs = ["en", "tr", "system"], Backdrops = ["Mica", "MicaAlt", "Acrylic", "None"], Views = ["Carousel", "Grid", "List"];
 
-    public SettingsViewModel(AppHost host, Action applied) { _h = host; _applied = applied; Load(); }
+    public SettingsViewModel(AppHost host, Action applied)
+    {
+        _h = host; _applied = applied;
+        _debounce = DispatcherQueue.GetForCurrentThread().CreateTimer();
+        _debounce.Interval = TimeSpan.FromMilliseconds(250);
+        _debounce.IsRepeating = false;
+        _debounce.Tick += (_, _) => Flush();
+        Load();
+    }
 
     public void Load()
     {
         _loading = true;
         var s = _h.Settings.Current;
         ThemeIndex = Math.Max(0, Array.IndexOf(Themes, s.Theme)); AccentHex = s.AccentColor;
+        TaskbarJumpList = s.TaskbarJumpList; _lastStartWithWindows = s.StartWithWindows;
         LanguageIndex = Math.Max(0, Array.IndexOf(Langs, s.Language)); TransparencyEnabled = s.TransparencyEnabled; OverlayOpacity = s.OverlayOpacityPercent; Transparency = s.TransparencyPercent;
         BackdropIndex = Math.Max(0, Array.IndexOf(Backdrops, s.Backdrop)); BackgroundDim = s.BackgroundDimPercent;
         AnimationsEnabled = s.AnimationsEnabled; AnimationSpeed = s.AnimationSpeedPercent; SidebarCompact = s.SidebarCompact;
@@ -103,7 +116,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     protected override void OnPropertyChanged(PropertyChangedEventArgs e)
     {
         base.OnPropertyChanged(e);
-        if (_loading || e.PropertyName is nameof(Message) or nameof(BackupPath)) return;
+        if (_loading || e.PropertyName is nameof(Message) or nameof(BackupPath) or nameof(SteamKeyState)) return;
         Commit();
     }
 
@@ -114,14 +127,19 @@ public sealed partial class SettingsViewModel : ObservableObject
         s.Language = Langs[Math.Clamp(LanguageIndex, 0, 2)]; s.TransparencyEnabled = TransparencyEnabled; s.OverlayOpacityPercent = (int)OverlayOpacity; s.TransparencyPercent = (int)Transparency;
         s.Backdrop = Backdrops[Math.Clamp(BackdropIndex, 0, 3)]; s.BackgroundDimPercent = (int)BackgroundDim;
         s.AnimationsEnabled = AnimationsEnabled; s.AnimationSpeedPercent = (int)AnimationSpeed; s.SidebarCompact = SidebarCompact;
-        var startChanged = s.StartWithWindows != StartWithWindows;
+        s.TaskbarJumpList = TaskbarJumpList;
         s.StartWithWindows = StartWithWindows; s.MinimizeToTray = MinimizeToTray; s.AutoDetectGames = AutoDetect;
         s.ScanIntervalMinutes = Math.Max(1, (int)ScanInterval); s.DefaultLibraryView = Views[Math.Clamp(DefaultViewIndex, 0, 2)];
         s.AutoMetadataRefresh = AutoMetadata; s.SteamId64 = string.IsNullOrWhiteSpace(SteamId) ? null : SteamId.Trim();
         s.BackupDirectory = string.IsNullOrWhiteSpace(BackupDirectory) ? null : BackupDirectory; s.CustomBackgroundImage = string.IsNullOrWhiteSpace(CustomBackground) ? null : CustomBackground;
         s.ScanDirectories = ScanDirectories.ToList();
+        _debounce.Stop(); _debounce.Start();      // sliders fire dozens of changes per second: save + apply once
+    }
+
+    private void Flush()
+    {
         _h.Settings.Save();
-        if (startChanged) Services.Platform.SetStartWithWindows(StartWithWindows);
+        if (_lastStartWithWindows != StartWithWindows) { _lastStartWithWindows = StartWithWindows; Services.Platform.SetStartWithWindows(StartWithWindows); }
         _applied();
     }
 

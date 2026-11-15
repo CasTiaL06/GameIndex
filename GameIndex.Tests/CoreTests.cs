@@ -222,3 +222,24 @@ public class PathTests
         finally { Directory.Delete(d, true); }
     }
 }
+
+public class IconCandidateTests
+{
+    [Fact] public void FindCandidates_PrefersBigExes_SkipsToolsAndAntiCheatFolders()
+    {
+        var d = Path.Combine(Path.GetTempPath(), "gi-cand-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(d, "Game", "Binaries", "Win64"));
+        Directory.CreateDirectory(Path.Combine(d, "EasyAntiCheat"));
+        File.WriteAllBytes(Path.Combine(d, "Launcher.exe"), new byte[10]);
+        File.WriteAllBytes(Path.Combine(d, "Game", "Binaries", "Win64", "Client-Win64-Shipping.exe"), new byte[5000]);
+        File.WriteAllBytes(Path.Combine(d, "EasyAntiCheat", "huge.exe"), new byte[9000]);
+        File.WriteAllBytes(Path.Combine(d, "vc_redist.x64.exe"), new byte[9000]);
+        try
+        {
+            var c = ExeFinder.FindCandidates(d);
+            Assert.Equal(2, c.Count);
+            Assert.EndsWith("Client-Win64-Shipping.exe", c[0]);
+        }
+        finally { Directory.Delete(d, true); }
+    }
+}

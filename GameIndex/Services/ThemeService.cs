@@ -21,6 +21,8 @@ public static class ThemeService
         return fallback;
     }
 
+    private static string? _lastBackdrop;
+
     private static void Set(string key, Color c) => ((SolidColorBrush)Application.Current.Resources[key]).Color = c;
 
     public static bool IsDark(AppSettings s) => s.Theme switch
@@ -65,13 +67,17 @@ public static class ThemeService
         }
         Set("AccentBrush", ParseColor(s.AccentColor, Color.FromArgb(255, 0x65, 0xD9, 0xFF)));
 
-        window.SystemBackdrop = backdrop switch
+        if (backdrop != _lastBackdrop)
+        {
+            _lastBackdrop = backdrop;
+            window.SystemBackdrop = backdrop switch
         {
             "Acrylic" => new DesktopAcrylicBackdrop(),
             "MicaAlt" => new MicaBackdrop { Kind = Microsoft.UI.Composition.SystemBackdrops.MicaKind.BaseAlt },
             "None" => null,
             _ => new MicaBackdrop()
-        };
+            };
+        }
         if (root is Grid g) g.Background = backdrop == "None" ? (Brush)Application.Current.Resources["WindowBgBrush"] : new SolidColorBrush(Colors.Transparent);
     }
 }

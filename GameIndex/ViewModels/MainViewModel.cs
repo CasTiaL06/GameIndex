@@ -54,6 +54,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public event Action? SelectionChanged;
     public event Action? Reloaded;
+    public event Action? SelectedUpdated;
     public Visibility InfoVisibility => Selected is null ? Visibility.Collapsed : Visibility.Visible;
     partial void OnSelectedChanged(GameViewModel? value) => OnPropertyChanged(nameof(InfoVisibility));
     public Visibility CarouselVisibility => ViewMode == ViewMode.Carousel ? Visibility.Visible : Visibility.Collapsed;
@@ -124,6 +125,7 @@ public sealed partial class MainViewModel : ObservableObject
         var g = await Task.Run(() => _h.Db.GetGame(id));
         if (g is null) { await ReloadAsync(); return; }
         if (_vms.TryGetValue(id, out var v)) { v.Update(g); v.IsRunning = _h.Tracker.IsRunning(id); }
+        if (Selected?.Id == id) SelectedUpdated?.Invoke();
         if (Selected?.Id == id && DetailsVisibility == Visibility.Visible) await LoadDetailsAsync(id);
     }
 
@@ -274,8 +276,11 @@ public sealed partial class MainViewModel : ObservableObject
     public async Task<long> AddManualAsync(Game g, string? cover, string? background)
     {
         var id = await Task.Run(() => _h.Db.InsertManual(g));
-        if (cover is not null) _h.Artwork.ImportCustom(id, "cover", cover);
-        if (background is not null) _h.Artwork.ImportCustom(id, "background", background);
+        await Task.Run(() =>
+        {
+            if (cover is not null) _h.Artwork.ImportCustom(id, "cover", cover);
+            if (background is not null) _h.Artwork.ImportCustom(id, "background", background);
+        });
         _h.Tracker.InvalidateWatchList();
         await ReloadAsync();
         _ = _h.Info.RefreshGameAsync(id, RefreshKind.Size | RefreshKind.Artwork);
@@ -285,8 +290,11 @@ public sealed partial class MainViewModel : ObservableObject
     public async Task SaveEditAsync(Game g, string? cover, string? background)
     {
         await Task.Run(() => _h.Db.UpdateGameDetails(g));
-        if (cover is not null) _h.Artwork.ImportCustom(g.Id, "cover", cover);
-        if (background is not null) _h.Artwork.ImportCustom(g.Id, "background", background);
+        await Task.Run(() =>
+        {
+            if (cover is not null) _h.Artwork.ImportCustom(g.Id, "cover", cover);
+            if (background is not null) _h.Artwork.ImportCustom(g.Id, "background", background);
+        });
         _h.Tracker.InvalidateWatchList();
         await ReloadAsync();
     }

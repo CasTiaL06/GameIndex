@@ -56,22 +56,44 @@ public sealed partial class GameCard : UserControl
         FavIcon.Visibility = g.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
         RunDot.Visibility = g.IsRunning ? Visibility.Visible : Visibility.Collapsed;
         Card.Opacity = g.Model.IsInstalled ? 1 : 0.5;
+        // every game gets its own colour so icon-less cards are still distinguishable
+        var hue = (g.Title.Aggregate(17, (h, c) => unchecked(h * 31 + c)) & 0x7FFFFFFF) % 360;
+        var grad = new LinearGradientBrush { StartPoint = new(0, 0), EndPoint = new(1, 1) };
+        grad.GradientStops.Add(new GradientStop { Color = FromHue(hue, 0.55, 0.55), Offset = 0 });
+        grad.GradientStops.Add(new GradientStop { Color = Color.FromArgb(0xFF, 0x11, 0x15, 0x1D), Offset = 1 });
+        CoverBorder.Background = grad;
+
         if (g.CoverImage is { } src)
         {
-            CoverBorder.Background = new ImageBrush { ImageSource = src, Stretch = Stretch.UniformToFill };
+            var brush = new ImageBrush { ImageSource = src, Stretch = Stretch.UniformToFill };
+            if (src is Microsoft.UI.Xaml.Media.Imaging.BitmapImage bi)
+            {
+                // Covers close to the card's 120:168 ratio fill it; anything else is fitted completely (never cropped/zoomed)
+                void Fit()
+                {
+                    if (bi.PixelWidth > 0 && bi.PixelHeight > 0)
+                        brush.Stretch = Math.Abs((double)bi.PixelWidth / bi.PixelHeight - 120.0 / 168) > 0.18 ? Stretch.Uniform : Stretch.UniformToFill;
+                }
+                Fit();
+                bi.ImageOpened += (_, _) => Fit();
+            }
+            CoverArt.Background = brush;
             FallbackTitle.Visibility = Visibility.Collapsed; IconImg.Visibility = Visibility.Collapsed; Monogram.Visibility = Visibility.Collapsed;
         }
         else
         {
-            // Generated fallback layout: gradient + title (+ the EXE icon when we could extract one)
-            var grad = new LinearGradientBrush { StartPoint = new(0, 0), EndPoint = new(1, 1) };
-            grad.GradientStops.Add(new GradientStop { Color = Color.FromArgb(0xB0, 0x8B, 0x7C, 0xFF), Offset = 0 });
-            grad.GradientStops.Add(new GradientStop { Color = Color.FromArgb(0xFF, 0x11, 0x15, 0x1D), Offset = 1 });
-            CoverBorder.Background = grad;
+            CoverArt.Background = null;
             FallbackTitle.Text = g.Title; FallbackTitle.Visibility = Visibility.Visible;
             if (g.IconImage is { } icon) { IconImg.Source = icon; IconImg.Visibility = Visibility.Visible; Monogram.Visibility = Visibility.Collapsed; }
             else { IconImg.Visibility = Visibility.Collapsed; Monogram.Text = g.Monogram; Monogram.Visibility = Visibility.Visible; }
         }
+    }
+
+    private static Color FromHue(int hue, double s, double v)
+    {
+        var c = v * s; var x = c * (1 - Math.Abs(hue / 60.0 % 2 - 1)); var m = v - c;
+        (double r, double g, double b) = hue switch { < 60 => (c, x, 0.0), < 120 => (x, c, 0.0), < 180 => (0.0, c, x), < 240 => (0.0, x, c), < 300 => (x, 0.0, c), _ => (c, 0.0, x) };
+        return Color.FromArgb(0xE0, (byte)((r + m) * 255), (byte)((g + m) * 255), (byte)((b + m) * 255));
     }
 
     private void Apply(bool animate)

@@ -22,6 +22,7 @@ public sealed class AppSettings
     // Application
     public bool StartWithWindows { get; set; }
     public bool MinimizeToTray { get; set; }
+    public bool TaskbarJumpList { get; set; } = true;     // recent/favorite games in the taskbar right-click menu
     public bool AutoDetectGames { get; set; } = true;
     public int ScanIntervalMinutes { get; set; } = 15;
     public string DefaultLibraryView { get; set; } = "Carousel"; // Carousel | Grid | List

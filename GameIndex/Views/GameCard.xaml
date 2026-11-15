@@ -9,6 +9,7 @@
                 <CompositeTransform x:Name="Xf" />
             </Grid.RenderTransform>
             <Border x:Name="CoverBorder" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource BorderSoftBrush}" />
+            <Border x:Name="CoverArt" CornerRadius="12" />
             <Image x:Name="IconImg" Width="72" Height="72" Stretch="Uniform" VerticalAlignment="Center" Margin="0,-26,0,0" Visibility="Collapsed" />
             <TextBlock x:Name="Monogram" FontSize="44" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-30,0,0"
                        Foreground="{StaticResource OnArtTextBrush}" Opacity="0.85" Visibility="Collapsed" />

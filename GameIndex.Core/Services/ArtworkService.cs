@@ -8,7 +8,7 @@ public sealed class ArtworkService
     private readonly HttpClient _http;
 
     /// <summary>Set by the UI layer: extracts the shell icon of an EXE into a PNG and returns its path.</summary>
-    public Func<Game, string, CancellationToken, Task<string?>>? ExeIconProvider { get; set; }
+    public Func<Game, IReadOnlyList<string>, CancellationToken, Task<string?>>? ExeIconProvider { get; set; }
 
     public ArtworkService(AppPaths paths, Db db, HttpClient http) { _paths = paths; _db = db; _http = http; }
 
@@ -22,30 +22,74 @@ public sealed class ArtworkService
                 if (!Has(g.BackgroundPath)) await SteamAsync(g, "background", "library_hero.jpg", _paths.BackgroundsDir, ct);
                 if (!Has(g.LogoPath)) await SteamAsync(g, "logo", "logo.png", _paths.IconsDir, ct);
             }
-            if (!Has(g.CoverPath) && !Has(g.IconPath) && ExeIconProvider is not null && IconSourceFor(g) is { } src)
-            {
-                var icon = await ExeIconProvider(g, src, ct);
-                if (icon is not null) _db.SetArtwork(g.Id, "icon", icon, false);
-            }
+            if (!Has(g.CoverPath) && !Has(g.IconPath)) await TryIconAsync(g, ct);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) { Log.Warn($"Artwork for '{g.Title}' failed: {ex.Message}"); }
+        // remember that we tried, so scans do not repeat expensive searches every 15 minutes (manual refresh ignores this)
+        try { _db.SetSetting($"art_tried_{g.Id}", Format.NowUnix().ToString()); } catch { }
     }
 
-    /// <summary>The EXE whose icon represents the game: one inside the install folder (e.g. League of Legends.exe), never a launcher/client outside it.</summary>
-    public static string? IconSourceFor(Game g)
+    /// <summary>
+    /// Icon search, best first: (1) logo/icon files shipped with the game (Xbox package logos, GOG/other .ico files),
+    /// (2) embedded icons of the game's executables – several candidates are tried, never a generic icon.
+    /// If nothing is found the UI draws a coloured initials card.
+    /// </summary>
+    private async Task<bool> TryIconAsync(Game g, CancellationToken ct)
+    {
+        var file = FindShippedImage(g);
+        if (file is not null)
+        {
+            var dest = Path.Combine(_paths.IconsDir, $"file_{g.Id}{Path.GetExtension(file)}");
+            File.Copy(file, dest, true);
+            _db.SetArtwork(g.Id, "icon", dest, false);
+            return true;
+        }
+        if (ExeIconProvider is not null)
+        {
+            var candidates = IconCandidatesFor(g);
+            if (candidates.Count > 0)
+            {
+                var icon = await ExeIconProvider(g, candidates, ct);
+                if (icon is not null) { _db.SetArtwork(g.Id, "icon", icon, false); return true; }
+            }
+        }
+        return false;
+    }
+
+    private static string? FindShippedImage(Game g)
     {
         try
         {
-            if (!string.IsNullOrEmpty(g.InstallDir) && Directory.Exists(g.InstallDir))
-            {
-                if (!string.IsNullOrEmpty(g.ExePath) && File.Exists(g.ExePath) && PathUtil.IsUnder(g.ExePath, g.InstallDir)) return g.ExePath;
-                var found = ExeFinder.FindMainExe(g.InstallDir, 3);
-                if (found is not null) return found;
-            }
+            var dir = g.InstallDir;
+            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return null;
+            var places = new List<string> { dir, Path.Combine(dir, "Assets") };
+            foreach (var d in places.Where(Directory.Exists))
+                foreach (var pattern in new[] { "Square310x310Logo*.png", "Square150x150Logo*.png", "StoreLogo*.png", "Logo*.png", "SmallLogo*.png" })
+                {
+                    var hit = Directory.EnumerateFiles(d, pattern).FirstOrDefault();
+                    if (hit is not null) return hit;
+                }
+            return Directory.EnumerateFiles(dir, "*.ico").Where(f => !Path.GetFileName(f).StartsWith("unins", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(f => new FileInfo(f).Length).FirstOrDefault();
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Executables whose icon can represent the game. Epic/Riot report launcher stubs, so several candidates from the game folder are tried.</summary>
+    public static IReadOnlyList<string> IconCandidatesFor(Game g)
+    {
+        var list = new List<string>();
+        try
+        {
+            var dir = g.InstallDir;
+            if (!string.IsNullOrEmpty(g.ExePath) && File.Exists(g.ExePath) && (string.IsNullOrEmpty(dir) || PathUtil.IsUnder(g.ExePath, dir))) list.Add(g.ExePath);
+            if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                foreach (var c in ExeFinder.FindCandidates(dir)) if (!list.Contains(c, StringComparer.OrdinalIgnoreCase)) list.Add(c);
+            if (list.Count == 0 && !string.IsNullOrEmpty(g.ExePath) && File.Exists(g.ExePath)) list.Add(g.ExePath);
         }
         catch { }
-        return !string.IsNullOrEmpty(g.ExePath) && File.Exists(g.ExePath) ? g.ExePath : null;
+        return list;
     }
 
     private static bool Has(string? p) => !string.IsNullOrEmpty(p) && File.Exists(p);

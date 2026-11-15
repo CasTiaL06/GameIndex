@@ -50,6 +50,7 @@
                     <TextBlock Text="APPLICATION" FontSize="12" CharacterSpacing="150" Foreground="{StaticResource AccentBrush}" Margin="0,18,0,0" />
                     <ToggleSwitch Header="Start with Windows (current user, no admin rights)" IsOn="{x:Bind Vm.StartWithWindows, Mode=TwoWay}" />
                     <ToggleSwitch Header="Minimize to system tray (closing keeps playtime tracking running)" IsOn="{x:Bind Vm.MinimizeToTray, Mode=TwoWay}" />
+                    <ToggleSwitch Header="Taskbar jump list: show recent and favorite games when right-clicking the taskbar icon" IsOn="{x:Bind Vm.TaskbarJumpList, Mode=TwoWay}" />
                     <ToggleSwitch Header="Automatic game detection" IsOn="{x:Bind Vm.AutoDetect, Mode=TwoWay}" />
                     <NumberBox Header="Scan interval (minutes)" Minimum="1" Maximum="1440" SpinButtonPlacementMode="Inline" Value="{x:Bind Vm.ScanInterval, Mode=TwoWay}" Width="200" HorizontalAlignment="Left" />
                     <ComboBox Header="Default library view" SelectedIndex="{x:Bind Vm.DefaultViewIndex, Mode=TwoWay}" Width="260">

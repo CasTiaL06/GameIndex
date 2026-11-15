@@ -1,6 +1,5 @@
 using GameIndex.Core.Models;
 using GameIndex.Services;
-using GameIndex.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 

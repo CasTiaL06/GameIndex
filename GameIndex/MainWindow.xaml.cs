@@ -213,7 +213,7 @@ public sealed partial class MainWindow : Window
     {
         ViewModel.CloseDetails(); CloseQuick();
         SettingsHost.Visibility = Visibility.Visible; _settingsVm.Load();
-        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => Loc.Apply(SettingsHost));
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => Loc.Apply(SettingsHost));
     }
     private void HideSettings() => SettingsHost.Visibility = Visibility.Collapsed;
     private void ScanButton_Click(object sender, RoutedEventArgs e) => _ = ViewModel.ScanNowAsync();
@@ -374,9 +374,9 @@ public sealed partial class MainWindow : Window
 
     // ---------- info panel actions ----------
     private void Play_Click(object sender, RoutedEventArgs e) => ViewModel.Launch();
-    private async void Details_Click(object sender, RoutedEventArgs e) { await ViewModel.OpenDetailsAsync(); DetailsHost.SelectTab(0); DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => Loc.Apply(DetailsHost)); }
-    private async void Achievements_Click(object sender, RoutedEventArgs e) { await ViewModel.OpenDetailsAsync(); DetailsHost.SelectTab(1); DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => Loc.Apply(DetailsHost)); }
-    private async void Dlc_Click(object sender, RoutedEventArgs e) { await ViewModel.OpenDetailsAsync(); DetailsHost.SelectTab(2); DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => Loc.Apply(DetailsHost)); }
+    private async void Details_Click(object sender, RoutedEventArgs e) { await ViewModel.OpenDetailsAsync(); DetailsHost.SelectTab(0); DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => Loc.Apply(DetailsHost)); }
+    private async void Achievements_Click(object sender, RoutedEventArgs e) { await ViewModel.OpenDetailsAsync(); DetailsHost.SelectTab(1); DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => Loc.Apply(DetailsHost)); }
+    private async void Dlc_Click(object sender, RoutedEventArgs e) { await ViewModel.OpenDetailsAsync(); DetailsHost.SelectTab(2); DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => Loc.Apply(DetailsHost)); }
     private void OpenFolder_Click(object sender, RoutedEventArgs e) => ViewModel.OpenFolder();
     private async void Favorite_Click(object sender, RoutedEventArgs e) => await ViewModel.ToggleFavoriteAsync();
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await ViewModel.RefreshAsync();

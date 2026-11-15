@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="GameIndex.Core/GameIndex.Core.csproj" />
+  <Project Path="GameIndex/GameIndex.csproj" />
+  <Project Path="GameIndex.Tests/GameIndex.Tests.csproj" />
+</Solution>

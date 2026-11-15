@@ -1,0 +1,66 @@
+name: Build GameIndex (Windows x64)
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed only to attach the ZIP to a GitHub Release on tags
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: |
+          dotnet restore GameIndex.Core/GameIndex.Core.csproj
+          dotnet restore GameIndex.Tests/GameIndex.Tests.csproj
+          dotnet restore GameIndex/GameIndex.csproj -r win-x64
+
+      - name: Unit tests
+        run: dotnet test GameIndex.Tests/GameIndex.Tests.csproj -c Release --no-restore --logger "trx;LogFileName=tests.trx"
+
+      - name: Build app (verification)
+        run: dotnet build GameIndex/GameIndex.csproj -c Release -p:Platform=x64 -r win-x64 --no-restore
+
+      - name: Publish self-contained x64
+        run: >
+          dotnet publish GameIndex/GameIndex.csproj -c Release -p:Platform=x64 -r win-x64
+          --self-contained true -p:WindowsPackageType=None -p:WindowsAppSDKSelfContained=true
+          -p:PublishSingleFile=false -o publish/GameIndex
+
+      - name: Create portable layout and ZIP
+        shell: pwsh
+        run: |
+          $root = "publish/GameIndex"
+          foreach ($d in "Data/Backups","Assets/Covers","Assets/Backgrounds","Assets/Icons","Settings","Cache","Logs") {
+            New-Item -ItemType Directory -Force -Path "$root/$d" | Out-Null
+            New-Item -ItemType File -Force -Path "$root/$d/.keep" | Out-Null
+          }
+          Copy-Item README.md "$root/README.txt"
+          if (-not (Test-Path "$root/GameIndex.exe")) { throw "GameIndex.exe missing from publish output" }
+          Compress-Archive -Path "$root" -DestinationPath GameIndex-Portable-x64.zip -Force
+          Get-Item GameIndex-Portable-x64.zip | Select-Object Name, Length
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GameIndex-Portable-x64
+          path: GameIndex-Portable-x64.zip
+          if-no-files-found: error
+
+      - name: Attach ZIP to GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: GameIndex-Portable-x64.zip

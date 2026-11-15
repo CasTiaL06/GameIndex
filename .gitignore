@@ -1,0 +1,18 @@
+bin/
+obj/
+publish/
+artifacts/
+.vs/
+*.user
+*.suo
+*.db
+*.db-journal
+Data/
+Logs/
+Cache/
+Settings/settings.json
+# Never commit secrets
+*.pfx
+*.snk
+.env
+secrets.json

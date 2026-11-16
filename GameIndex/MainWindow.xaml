@@ -20,7 +20,10 @@
             <Image x:Name="BgA" Stretch="UniformToFill" />
             <Image x:Name="BgB" Stretch="UniformToFill" Opacity="0" />
             <!-- No wide background available: show the cover/icon completely (Uniform = fitted, never zoomed or cropped) -->
-            <Image x:Name="BgArt" Stretch="Uniform" HorizontalAlignment="Right" VerticalAlignment="Center" MaxHeight="540" MaxWidth="540" Margin="0,70,110,150" Opacity="0.95" Visibility="Collapsed" />
+            <Border x:Name="BgArtHost" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,60,120,140" Padding="34" CornerRadius="44"
+                    BorderThickness="1" BorderBrush="{StaticResource BorderSoftBrush}" Background="#22FFFFFF">
+                <Image x:Name="BgArt" Stretch="Uniform" />
+            </Border>
             <Rectangle x:Name="DimOverlay" Fill="Black" Opacity="0.35" />
             <Rectangle>
                 <Rectangle.Fill>

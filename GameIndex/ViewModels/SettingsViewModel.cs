@@ -29,6 +29,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private int _themeIndex;
     [ObservableProperty] private string _accentHex = "#65D9FF";
     [ObservableProperty] private bool _taskbarJumpList = true;
+    [ObservableProperty] private bool _hotkeyEnabled = true;
+    [ObservableProperty] private int _hotkeyIndex;
+    [ObservableProperty] private bool _floatingIconEnabled = true;
+    [ObservableProperty] private bool _soundsEnabled = true;
+    public event Action? ResetIconRequested;
+    public void RequestResetIcon() => ResetIconRequested?.Invoke();
     [ObservableProperty] private int _languageIndex = 2;
     [ObservableProperty] private bool _transparencyEnabled = true;
     [ObservableProperty] private double _overlayOpacity = 95;
@@ -59,7 +65,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public string BackupPath => string.IsNullOrEmpty(BackupDirectory) ? _h.Paths.BackupsDir : BackupDirectory;
     public string SteamKeyState => Services.Loc.T(string.IsNullOrEmpty(_h.Settings.GetSteamApiKey()) ? "No API key saved" : "API key saved (encrypted with Windows DPAPI)");
 
-    private static readonly string[] Themes = ["Dark", "Light", "System"], Langs = ["en", "tr", "system"], Backdrops = ["Mica", "MicaAlt", "Acrylic", "None"], Views = ["Carousel", "Grid", "List"];
+    private static readonly string[] Themes = ["Dark", "Light", "System"], Langs = ["en", "tr", "system"], Hotkeys = ["Alt+G", "Ctrl+Alt+G", "Ctrl+Shift+G", "F9"], Backdrops = ["Mica", "MicaAlt", "Acrylic", "None"], Views = ["Carousel", "Grid", "List"];
 
     public SettingsViewModel(AppHost host, Action applied)
     {
@@ -76,7 +82,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         _loading = true;
         var s = _h.Settings.Current;
         ThemeIndex = Math.Max(0, Array.IndexOf(Themes, s.Theme)); AccentHex = s.AccentColor;
-        TaskbarJumpList = s.TaskbarJumpList; _lastStartWithWindows = s.StartWithWindows;
+        TaskbarJumpList = s.TaskbarJumpList; HotkeyEnabled = s.HotkeyEnabled; HotkeyIndex = Math.Max(0, Array.IndexOf(Hotkeys, s.Hotkey));
+        FloatingIconEnabled = s.FloatingIconEnabled; SoundsEnabled = s.SoundsEnabled; _lastStartWithWindows = s.StartWithWindows;
         LanguageIndex = Math.Max(0, Array.IndexOf(Langs, s.Language)); TransparencyEnabled = s.TransparencyEnabled; OverlayOpacity = s.OverlayOpacityPercent; Transparency = s.TransparencyPercent;
         BackdropIndex = Math.Max(0, Array.IndexOf(Backdrops, s.Backdrop)); BackgroundDim = s.BackgroundDimPercent;
         AnimationsEnabled = s.AnimationsEnabled; AnimationSpeed = s.AnimationSpeedPercent; SidebarCompact = s.SidebarCompact;
@@ -127,7 +134,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         s.Language = Langs[Math.Clamp(LanguageIndex, 0, 2)]; s.TransparencyEnabled = TransparencyEnabled; s.OverlayOpacityPercent = (int)OverlayOpacity; s.TransparencyPercent = (int)Transparency;
         s.Backdrop = Backdrops[Math.Clamp(BackdropIndex, 0, 3)]; s.BackgroundDimPercent = (int)BackgroundDim;
         s.AnimationsEnabled = AnimationsEnabled; s.AnimationSpeedPercent = (int)AnimationSpeed; s.SidebarCompact = SidebarCompact;
-        s.TaskbarJumpList = TaskbarJumpList;
+        s.TaskbarJumpList = TaskbarJumpList; s.HotkeyEnabled = HotkeyEnabled; s.Hotkey = Hotkeys[Math.Clamp(HotkeyIndex, 0, Hotkeys.Length - 1)];
+        s.FloatingIconEnabled = FloatingIconEnabled; s.SoundsEnabled = SoundsEnabled;
         s.StartWithWindows = StartWithWindows; s.MinimizeToTray = MinimizeToTray; s.AutoDetectGames = AutoDetect;
         s.ScanIntervalMinutes = Math.Max(1, (int)ScanInterval); s.DefaultLibraryView = Views[Math.Clamp(DefaultViewIndex, 0, 2)];
         s.AutoMetadataRefresh = AutoMetadata; s.SteamId64 = string.IsNullOrWhiteSpace(SteamId) ? null : SteamId.Trim();

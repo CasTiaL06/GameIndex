@@ -47,6 +47,17 @@
                     <ToggleSwitch Header="Compact sidebar (icons only until expanded)" IsOn="{x:Bind Vm.SidebarCompact, Mode=TwoWay}" />
                     <TextBlock Text="Note: Windows exposes no adjustable blur radius for Mica/Acrylic, so blur strength is chosen via Window material plus the transparency slider." FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" />
 
+                    <TextBlock Text="DESKTOP &amp; SHORTCUTS" FontSize="12" CharacterSpacing="150" Foreground="{StaticResource AccentBrush}" Margin="0,18,0,0" />
+                    <ToggleSwitch Header="Global hotkey: show / hide GameIndex from anywhere" IsOn="{x:Bind Vm.HotkeyEnabled, Mode=TwoWay}" />
+                    <ComboBox Header="Hotkey" SelectedIndex="{x:Bind Vm.HotkeyIndex, Mode=TwoWay}" Width="260">
+                        <ComboBoxItem Content="Alt + G" /><ComboBoxItem Content="Ctrl + Alt + G" /><ComboBoxItem Content="Ctrl + Shift + G" /><ComboBoxItem Content="F9" />
+                    </ComboBox>
+                    <ToggleSwitch Header="Floating desktop icon (drag it anywhere, click to open GameIndex)" IsOn="{x:Bind Vm.FloatingIconEnabled, Mode=TwoWay}" />
+                    <Button Content="Reset icon position" Click="ResetIcon_Click" />
+                    <ToggleSwitch Header="Sounds (startup, open and close)" IsOn="{x:Bind Vm.SoundsEnabled, Mode=TwoWay}" />
+                    <Button Content="Play startup sound" Click="TestSound_Click" />
+
+
                     <TextBlock Text="APPLICATION" FontSize="12" CharacterSpacing="150" Foreground="{StaticResource AccentBrush}" Margin="0,18,0,0" />
                     <ToggleSwitch Header="Start with Windows (current user, no admin rights)" IsOn="{x:Bind Vm.StartWithWindows, Mode=TwoWay}" />
                     <ToggleSwitch Header="Minimize to system tray (closing keeps playtime tracking running)" IsOn="{x:Bind Vm.MinimizeToTray, Mode=TwoWay}" />

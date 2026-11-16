@@ -36,7 +36,14 @@ public sealed partial class GameViewModel : ObservableObject
         if (path != loadedPath) { loadedPath = path; cache = null; }
         if (cache is null && !string.IsNullOrEmpty(path) && File.Exists(path))
         {
-            try { cache = new BitmapImage { DecodePixelWidth = width, DecodePixelType = DecodePixelType.Logical, UriSource = new Uri(path) }; } catch { cache = null; }
+            try
+            {
+                var bi = new BitmapImage();
+                if (width > 0) { bi.DecodePixelWidth = width; bi.DecodePixelType = DecodePixelType.Logical; }   // width 0 = natural size
+                bi.UriSource = new Uri(path);
+                cache = bi;
+            }
+            catch { cache = null; }
         }
         return cache;
     }
@@ -45,7 +52,7 @@ public sealed partial class GameViewModel : ObservableObject
     /// <summary>Only a real wide background/hero image. Covers and icons are never stretched over the whole window.</summary>
     public ImageSource? BackgroundImage => Load(Model.BackgroundPath, ref _bgPath, ref _bg, 1920);
     /// <summary>Cover (or icon) shown fitted, un-cropped, when the game has no background image.</summary>
-    public ImageSource? ArtworkImage => Load(Model.CoverPath ?? Model.IconPath, ref _artPath, ref _art, 640);
+    public ImageSource? ArtworkImage => Load(Model.CoverPath ?? Model.IconPath, ref _artPath, ref _art, 0);
     public ImageSource? IconImage => Load(Model.IconPath, ref _iconPath, ref _icon, 128);
     public bool HasCover => CoverImage is not null;
 

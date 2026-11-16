@@ -34,10 +34,10 @@ public partial class App : Application
             return;
         }
 
-        var minimized = Environment.GetCommandLineArgs().Contains("--minimized") && host.Settings.Current.MinimizeToTray;
-        var background = minimized || command.StartsWith("launch:");   // launching a game from the jump list should not pop the window up
-        _window = new MainWindow(host, startHidden: background && host.Settings.Current.MinimizeToTray, initialCommand: command.StartsWith("launch:") || command == "scan" ? command : null);
-        if (!(background && host.Settings.Current.MinimizeToTray)) _window.Activate();
+        // Started with Windows (--minimized) or by a jump-list "launch game" click: stay in the tray / desktop icon instead of popping the window up.
+        var startHidden = Environment.GetCommandLineArgs().Contains("--minimized") || command.StartsWith("launch:");
+        _window = new MainWindow(host, startHidden, initialCommand: command.StartsWith("launch:") || command == "scan" ? command : null);
+        _window.Activate();                    // XAML only loads once the window is activated; a hidden start hides itself in Loaded
         InstanceBridge.StartServer(pipe, msg => _window.HandleCommand(msg));
     }
 }

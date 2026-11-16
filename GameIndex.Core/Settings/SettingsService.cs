@@ -22,6 +22,12 @@ public sealed class AppSettings
     // Application
     public bool StartWithWindows { get; set; }
     public bool MinimizeToTray { get; set; }
+    public bool HotkeyEnabled { get; set; } = true;        // global show/hide hotkey
+    public string Hotkey { get; set; } = "Alt+G";
+    public bool FloatingIconEnabled { get; set; } = true;  // draggable animated desktop icon
+    public int FloatingX { get; set; } = int.MinValue;     // remembered position (int.MinValue = default corner)
+    public int FloatingY { get; set; } = int.MinValue;
+    public bool SoundsEnabled { get; set; } = true;
     public bool TaskbarJumpList { get; set; } = true;     // recent/favorite games in the taskbar right-click menu
     public bool AutoDetectGames { get; set; } = true;
     public int ScanIntervalMinutes { get; set; } = 15;

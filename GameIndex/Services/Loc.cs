@@ -176,7 +176,12 @@ public static class Loc
         ["Category (optional, type to create a new one)"] = "Kategori (isteğe bağlı, yeni oluşturmak için yazın)",
         ["Custom cover image (optional)"] = "Özel kapak görseli (isteğe bağlı)", ["Custom background image (optional)"] = "Özel arka plan görseli (isteğe bağlı)",
         ["Track playtime for any process in the game's folder (for launcher EXEs that start the real game)"] = "Oyun klasöründeki herhangi bir işlem için süre takibi yap (asıl oyunu başlatan başlatıcı EXE'ler için)",
-        ["Browse…"] = "Gözat…", ["Recent games"] = "Son oynanan oyunlar", ["Favorite games"] = "Favori oyunlar", ["Open GameIndex"] = "GameIndex'i aç",
+        ["Browse…"] = "Gözat…", ["Hide desktop icon"] = "Masaüstü simgesini gizle", ["Show desktop icon"] = "Masaüstü simgesini göster", ["Exit GameIndex"] = "GameIndex'ten çık",
+        ["Hotkey {0} is already used by another program."] = "{0} kısayolu başka bir program tarafından kullanılıyor.",
+        ["DESKTOP & SHORTCUTS"] = "MASAÜSTÜ VE KISAYOLLAR",
+        ["Global hotkey: show / hide GameIndex from anywhere"] = "Genel kısayol: GameIndex'i her yerden göster / gizle", ["Hotkey"] = "Kısayol",
+        ["Floating desktop icon (drag it anywhere, click to open GameIndex)"] = "Yüzen masaüstü simgesi (istediğiniz yere sürükleyin, GameIndex'i açmak için tıklayın)",
+        ["Reset icon position"] = "Simge konumunu sıfırla", ["Sounds (startup, open and close)"] = "Sesler (açılış, açma ve kapama)", ["Play startup sound"] = "Açılış sesini çal", ["Recent games"] = "Son oynanan oyunlar", ["Favorite games"] = "Favori oyunlar", ["Open GameIndex"] = "GameIndex'i aç",
         ["Taskbar jump list: show recent and favorite games when right-clicking the taskbar icon"] = "Görev çubuğu atlama listesi: görev çubuğu simgesine sağ tıklayınca son oynananları ve favorileri göster", ["That executable does not exist."] = "Bu çalıştırılabilir dosya mevcut değil.",
         ["This game launches through its platform (login, DRM, cloud saves). Title, category and artwork edits apply; the executable is only used for games without a platform launch method."] =
             "Bu oyun platformu üzerinden başlatılır (giriş, DRM, bulut kayıtları). Başlık, kategori ve görsel düzenlemeleri geçerlidir; EXE yalnızca platform başlatma yöntemi olmayan oyunlarda kullanılır.",

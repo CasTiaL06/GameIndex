@@ -130,3 +130,16 @@ poster are fitted completely instead of being cropped, and games without a wide 
 ## Responsiveness
 All scanning, artwork, size, DLC, achievement and database work runs on thread-pool threads; settings are written to disk once after you stop
 moving a slider; UI text translation visits each element exactly once.
+
+## Tray icon, hotkey, desktop icon, sounds
+* **Tray icon** is always present. Left click = show/hide, right click = menu (Open / Scan / Show-Hide desktop icon / Exit).
+  Closing the window with ✕ hides it to the tray when *Minimize to system tray* is on (playtime tracking keeps running).
+* **Global hotkey** (default **Alt+G**, choices in Settings): shows GameIndex from anywhere, even over a game; pressing it again while GameIndex
+  is in front hides it. If the combination is taken by another program, the status bar says so.
+* **Floating desktop icon**: a small round, always-on-top, animated icon (rotating ring, breathing glyph). Drag it anywhere – the position is
+  remembered; click it and the window *grows out of the icon* (≈0.4 s); hiding the window shrinks it back into the icon. Right-click for a menu.
+  It is hidden while the window is open. Toggle / reset in Settings → Desktop & shortcuts.
+* **Sounds**: `startup.wav`, `open.wav`, `close.wav` in `Assets/Sounds`, synthesized by `tools/generate_sounds.py` (no samples, no copyright
+  issues). They are an original airy-chime design, *not* a copy of any console's sound. Re-run the script to tweak them. Toggle in Settings.
+* Artwork without a wide background (icons / covers) is shown in a glass tile at most at its own resolution, and the scene is tinted with the
+  artwork's dominant colour.

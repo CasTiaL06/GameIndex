@@ -16,6 +16,8 @@ public sealed partial class SettingsView : UserControl
     public void Initialize(SettingsViewModel vm, Window window, MainViewModel main, Action close) { Vm = vm; _window = window; _main = main; _close = close; InitializeComponent(); }
 
     private void Close_Click(object sender, RoutedEventArgs e) => _close();
+    private void ResetIcon_Click(object sender, RoutedEventArgs e) => Vm.RequestResetIcon();
+    private void TestSound_Click(object sender, RoutedEventArgs e) => SoundService.Play("startup");
 
     private void AccentPicker_ColorChanged(ColorPicker sender, ColorChangedEventArgs args) =>
         Vm.AccentHex = $"#{args.NewColor.R:X2}{args.NewColor.G:X2}{args.NewColor.B:X2}";

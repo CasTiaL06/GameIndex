@@ -34,6 +34,13 @@ public sealed partial class MainWindow : Window
     private List<GameViewModel> _quickAll = new();
     private string _typeBuf = "";
     private DateTime _typeAt = DateTime.MinValue;
+    private FloatingIconWindow? _floating;
+    private GlobalHotkey _hotkey = null!;
+    private string? _hotkeyRegistered;
+    private Windows.Graphics.RectInt32 _normal;
+    private bool _animating, _startHidden;
+    private readonly Dictionary<string, Windows.UI.Color> _tints = new();
+    private Brush? _defaultFallback;
 
     private string? _pendingCommand;
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _jlTimer;
@@ -59,6 +66,12 @@ public sealed partial class MainWindow : Window
 
         _tray = new TrayIcon(Platform.Hwnd(this));
         _tray.OpenRequested += ShowFromTray;
+        _tray.ToggleRequested += () => DispatcherQueue.TryEnqueue(ToggleMain);
+        _tray.ToggleIconRequested += () => DispatcherQueue.TryEnqueue(() => { _h.Settings.Current.FloatingIconEnabled = !_h.Settings.Current.FloatingIconEnabled; _h.Settings.Save(); _settingsVm.Load(); ApplyShell(); });
+        _hotkey = new GlobalHotkey(Platform.Hwnd(this));
+        _hotkey.Pressed += () => DispatcherQueue.TryEnqueue(ToggleMain);
+        _settingsVm.ResetIconRequested += () => { _floating?.ResetPosition(); _h.Settings.Save(); };
+        _defaultFallback = FallbackGradient.Fill;
         _tray.ScanRequested += () => DispatcherQueue.TryEnqueue(() => _ = ViewModel.ScanNowAsync());
         _tray.ExitRequested += () => DispatcherQueue.TryEnqueue(() => { _exiting = true; Close(); });
 
@@ -67,9 +80,10 @@ public sealed partial class MainWindow : Window
 
         AppWindow.Closing += (_, e) =>
         {
-            if (!_exiting && _h.Settings.Current.MinimizeToTray) { e.Cancel = true; AppWindow.Hide(); }
+            if (!_exiting && _h.Settings.Current.MinimizeToTray) { e.Cancel = true; HideMain(true); }
         };
-        Closed += (_, _) => { _pad.Dispose(); _tray.Dispose(); _h.Dispose(); };
+        AppWindow.Changed += (_, a) => { if ((a.DidSizeChange || a.DidPositionChange) && !_animating) RememberNormal(); };
+        Closed += (_, _) => { _floating?.Close(); _hotkey.Dispose(); _pad.Dispose(); _tray.Dispose(); _h.Dispose(); };
 
         ViewModel.SelectionChanged += OnSelectionChanged;
         ViewModel.Reloaded += SyncControls;
@@ -84,6 +98,9 @@ public sealed partial class MainWindow : Window
         Root.Loaded += async (_, _) =>
         {
             ApplyAppearance();
+            if (_startHidden) { AppWindow.Hide(); AppWindow.MoveAndResize(DefaultRect()); _startHidden = false; }
+            else SoundService.Play("startup", _h.Settings.Current.SoundsEnabled);
+            ApplyShell();
             if (_h.Paths.Warning is not null) ViewModel.StatusText = _h.Paths.Warning;
             ViewBar.SelectedItem = ViewBar.Items[(int)ViewModel.ViewMode];
             await ViewModel.ReloadAsync();
@@ -95,7 +112,9 @@ public sealed partial class MainWindow : Window
             CarouselScroller.Focus(FocusState.Programmatic);
         };
 
-        if (startHidden) DispatcherQueue.TryEnqueue(() => AppWindow.Hide());
+        // Started hidden (e.g. with Windows): the window must still be activated once so XAML loads; park it off-screen until Loaded hides it.
+        _startHidden = startHidden;
+        if (startHidden) AppWindow.Move(new Windows.Graphics.PointInt32(-32000, -32000));
     }
 
     // ---------- taskbar / single-instance commands ----------
@@ -157,7 +176,8 @@ public sealed partial class MainWindow : Window
         ThemeService.Apply(s, this, Root);
         DimOverlay.Opacity = Math.Clamp(s.BackgroundDimPercent / 100.0, 0, 0.9);
         Sidebar.Width = _sidebarExpanded || !s.SidebarCompact ? 230 : 64;
-        if (s.MinimizeToTray) _tray.Show(); else _tray.Hide();
+        _tray.Show();                                  // the tray icon is always present (left click = show/hide)
+        ApplyShell();
         _currentBg = null; UpdateBackground(false);
     }
 
@@ -167,7 +187,155 @@ public sealed partial class MainWindow : Window
         Sidebar.Width = _sidebarExpanded || !_h.Settings.Current.SidebarCompact ? 230 : 64;
     }
 
-    private void ShowFromTray() => DispatcherQueue.TryEnqueue(() => { AppWindow.Show(); Activate(); });
+    private void ShowFromTray() => DispatcherQueue.TryEnqueue(() => ShowMain(true));
+
+    // ---------- show / hide with animation, hotkey, floating icon ----------
+    private void ApplyShell()
+    {
+        var s = _h.Settings.Current;
+
+        var wanted = s.HotkeyEnabled ? s.Hotkey : null;
+        if (wanted != _hotkeyRegistered)
+        {
+            _hotkey.Unregister(); _hotkeyRegistered = null;
+            if (wanted is not null)
+            {
+                if (_hotkey.Register(wanted)) _hotkeyRegistered = wanted;
+                else ViewModel.StatusText = Loc.F("Hotkey {0} is already used by another program.", wanted);
+            }
+        }
+
+        if (s.FloatingIconEnabled)
+        {
+            if (_floating is null)
+            {
+                _floating = new FloatingIconWindow(s, (x, y) => { s.FloatingX = x; s.FloatingY = y; _h.Settings.Save(); });
+                _floating.Clicked += () => DispatcherQueue.TryEnqueue(() => ShowMain(true));
+                _floating.ScanRequested += () => DispatcherQueue.TryEnqueue(() => _ = ViewModel.ScanNowAsync());
+                _floating.HideIconRequested += () => DispatcherQueue.TryEnqueue(() => { s.FloatingIconEnabled = false; _h.Settings.Save(); _settingsVm.Load(); ApplyShell(); });
+                _floating.ExitRequested += () => DispatcherQueue.TryEnqueue(() => { _exiting = true; Close(); });
+            }
+            if (AppWindow.IsVisible) _floating.HideIcon(); else _floating.ShowIcon();
+        }
+        else if (_floating is not null) { var f = _floating; _floating = null; f.Close(); }
+        _tray.IconVisible = _floating?.IsShown == true;
+    }
+
+    private static Windows.Graphics.RectInt32 Lerp(Windows.Graphics.RectInt32 a, Windows.Graphics.RectInt32 b, double e)
+    {
+        static int L(int x, int y, double t) => (int)Math.Round(x + (y - x) * t);
+        return new(L(a.X, b.X, e), L(a.Y, b.Y, e), L(a.Width, b.Width, e), L(a.Height, b.Height, e));
+    }
+
+    private Windows.Graphics.RectInt32 DefaultRect()
+    {
+        var wa = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(AppWindow.Id, Microsoft.UI.Windowing.DisplayAreaFallback.Primary).WorkArea;
+        int w = Math.Min(1560, (int)(wa.Width * 0.92)), h = Math.Min(940, (int)(wa.Height * 0.92));
+        return new(wa.X + (wa.Width - w) / 2, wa.Y + (wa.Height - h) / 2, w, h);
+    }
+
+    private void RememberNormal()
+    {
+        if (AppWindow.IsVisible && AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Restored } && AppWindow.Position.X > -30000)
+            _normal = new(AppWindow.Position.X, AppWindow.Position.Y, AppWindow.Size.Width, AppWindow.Size.Height);
+    }
+
+    private Windows.Graphics.RectInt32 TargetRect()
+    {
+        if (_normal.Width > 300 && _normal.Height > 200 &&
+            Microsoft.UI.Windowing.DisplayArea.GetFromPoint(new Windows.Graphics.PointInt32(_normal.X + _normal.Width / 2, _normal.Y + _normal.Height / 2), Microsoft.UI.Windowing.DisplayAreaFallback.None) is not null)
+            return _normal;
+        return DefaultRect();
+    }
+
+    private static Windows.Graphics.RectInt32 Around(Windows.Graphics.RectInt32 r, int w, int h) => new(r.X + r.Width / 2 - w / 2, r.Y + r.Height / 2 - h / 2, w, h);
+
+    /// <summary>Opening starts at the floating icon (or the screen centre) and grows to the window; closing shrinks back toward the icon.</summary>
+    private Windows.Graphics.RectInt32 AnchorRect(Windows.Graphics.RectInt32 target)
+    {
+        if (_floating is { IsShown: true } f) return Around(f.Bounds, 240, 170);
+        return Around(target, Math.Max(240, target.Width / 3), Math.Max(170, target.Height / 3));
+    }
+
+    private void ToggleMain()
+    {
+        if (_animating) return;
+        if (AppWindow.IsVisible && Platform.IsForeground(this)) HideMain(true); else ShowMain(true);
+    }
+
+    private void ShowMain(bool animate)
+    {
+        if (_animating) return;
+        var presenter = AppWindow.Presenter as OverlappedPresenter;
+        if (presenter?.State == OverlappedPresenterState.Minimized) presenter.Restore();
+        if (AppWindow.IsVisible) { Activate(); Platform.Foreground(this); return; }       // already open: just bring it to the front
+
+        var s = _h.Settings.Current;
+        SoundService.Play("open", s.SoundsEnabled);
+        var maximized = presenter?.State == OverlappedPresenterState.Maximized;
+        var target = TargetRect();
+        if (!maximized && animate && s.AnimationsEnabled)
+        {
+            var from = AnchorRect(target);
+            AppWindow.MoveAndResize(from);
+            Root.Opacity = 0;
+            AppWindow.Show(); Activate(); Platform.Foreground(this);
+            Animate(from, target, opening: true, done: null);
+        }
+        else
+        {
+            if (!maximized) AppWindow.MoveAndResize(target);
+            AppWindow.Show(); Activate(); Platform.Foreground(this);
+        }
+        _floating?.HideIcon();
+        _tray.IconVisible = false;
+    }
+
+    private void HideMain(bool animate)
+    {
+        if (_animating || !AppWindow.IsVisible) return;
+        var s = _h.Settings.Current;
+        var maximized = AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Maximized };
+        RememberNormal();
+        SoundService.Play("close", s.SoundsEnabled);
+        if (s.FloatingIconEnabled) _floating?.ShowIcon();                                    // the window shrinks toward it
+        _tray.IconVisible = _floating?.IsShown == true;
+
+        if (!maximized && animate && s.AnimationsEnabled && _normal.Width > 0)
+        {
+            var from = _normal;
+            Animate(from, AnchorRect(from), opening: false, done: () =>
+            {
+                AppWindow.Hide();
+                Root.Opacity = 1;
+                AppWindow.MoveAndResize(from);                                               // restore size so the next open starts correctly
+            });
+        }
+        else AppWindow.Hide();
+    }
+
+    private void Animate(Windows.Graphics.RectInt32 a, Windows.Graphics.RectInt32 b, bool opening, Action? done)
+    {
+        _animating = true;
+        var ms = 380.0 * 100 / Math.Clamp(_h.Settings.Current.AnimationSpeedPercent, 25, 400);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(15);
+        timer.IsRepeating = true;
+        timer.Tick += (_, _) =>
+        {
+            var k = Math.Min(1.0, sw.Elapsed.TotalMilliseconds / ms);
+            var e = opening ? 1 - Math.Pow(1 - k, 3) : k * k * k;                            // ease-out when opening, ease-in when closing
+            AppWindow.MoveAndResize(Lerp(a, b, e));
+            Root.Opacity = opening ? e : 1 - e;
+            if (k < 1) return;
+            timer.Stop();
+            _animating = false;
+            done?.Invoke();
+            if (opening) RememberNormal();
+        };
+        timer.Start();
+    }
 
     // ---------- background cross-fade ----------
     private void UpdateBackground(bool animate = true)
@@ -203,8 +371,59 @@ public sealed partial class MainWindow : Window
     {
         var sel = ViewModel.Selected;
         var art = sel is not null && sel.BackgroundImage is null ? sel.ArtworkImage : null;
+        if (sel is null || art is null)
+        {
+            BgArtHost.Visibility = Visibility.Collapsed; BgArt.Source = null;
+            ResetTint();
+            return;
+        }
         BgArt.Source = art;
-        BgArt.Visibility = art is null ? Visibility.Collapsed : Visibility.Visible;
+        if (art is Microsoft.UI.Xaml.Media.Imaging.BitmapImage bi)
+        {
+            if (bi.PixelWidth > 0) FitArt(bi);
+            else { void Opened(object s, RoutedEventArgs e) { bi.ImageOpened -= Opened; FitArt(bi); } bi.ImageOpened += Opened; }
+        }
+        BgArtHost.Visibility = Visibility.Visible;
+        _ = ApplyTintAsync(sel);
+    }
+
+    /// <summary>Shows the image at (at most) its own resolution: small icons stay crisp instead of being blown up and blurry.</summary>
+    private void FitArt(Microsoft.UI.Xaml.Media.Imaging.BitmapImage bi)
+    {
+        var scale = Root.XamlRoot?.RasterizationScale ?? 1.0;
+        double w = bi.PixelWidth / scale, h = bi.PixelHeight / scale;
+        var k = Math.Min(1.0, 380.0 / Math.Max(w, h));
+        BgArt.Width = Math.Max(48, w * k); BgArt.Height = Math.Max(48, h * k);
+    }
+
+    private static Windows.UI.Color Mix(Windows.UI.Color a, Windows.UI.Color b, double t) =>
+        Windows.UI.Color.FromArgb(255, (byte)(a.R * t + b.R * (1 - t)), (byte)(a.G * t + b.G * (1 - t)), (byte)(a.B * t + b.B * (1 - t)));
+
+    /// <summary>Tints the window background with the artwork's dominant colour so icon/cover art sits in a matching scene.</summary>
+    private async Task ApplyTintAsync(GameViewModel sel)
+    {
+        var path = sel.Model.CoverPath ?? sel.Model.IconPath;
+        if (string.IsNullOrEmpty(path) || !File.Exists(path)) { ResetTint(); return; }
+        if (!_tints.TryGetValue(path, out var c))
+        {
+            var r = await Platform.AverageColorAsync(path);
+            if (r is null) { ResetTint(); return; }
+            c = r.Value; _tints[path] = c;
+        }
+        if (!ReferenceEquals(ViewModel.Selected, sel) || sel.BackgroundImage is not null) return;   // selection changed while decoding
+        var bg = Windows.UI.Color.FromArgb(255, 0x0B, 0x0D, 0x12);
+        var grad = new LinearGradientBrush { StartPoint = new Windows.Foundation.Point(0.1, 0), EndPoint = new Windows.Foundation.Point(0.9, 1) };
+        grad.GradientStops.Add(new GradientStop { Color = Mix(c, bg, 0.50), Offset = 0 });
+        grad.GradientStops.Add(new GradientStop { Color = Mix(c, bg, 0.22), Offset = 0.55 });
+        grad.GradientStops.Add(new GradientStop { Color = bg, Offset = 1 });
+        FallbackGradient.Fill = grad;
+        BgArtHost.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0x40, c.R, c.G, c.B));
+    }
+
+    private void ResetTint()
+    {
+        if (_defaultFallback is not null) FallbackGradient.Fill = _defaultFallback;
+        BgArtHost.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0x22, 255, 255, 255));
     }
 
     private void OnSelectionChanged()

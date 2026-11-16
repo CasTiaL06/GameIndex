@@ -51,6 +51,40 @@ public static class Platform
         catch (Exception ex) { Log.Warn($"Icon extraction failed for {g.Title} ({Path.GetFileName(exePath)}): {ex.Message}"); return null; }
     }
 
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr h);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+
+    public static void Foreground(Microsoft.UI.Xaml.Window w) => SetForegroundWindow(Hwnd(w));
+    public static bool IsForeground(Microsoft.UI.Xaml.Window w) => GetForegroundWindow() == Hwnd(w);
+
+    /// <summary>Saturation-weighted average colour of an image (16x16 sample) – used to tint the background around icon/cover art.</summary>
+    public static async Task<Windows.UI.Color?> AverageColorAsync(string path)
+    {
+        try
+        {
+            var file = await StorageFile.GetFileFromPathAsync(path);
+            using var stream = await file.OpenReadAsync();
+            var dec = await Windows.Graphics.Imaging.BitmapDecoder.CreateAsync(stream);
+            var tr = new Windows.Graphics.Imaging.BitmapTransform { ScaledWidth = 16, ScaledHeight = 16, InterpolationMode = Windows.Graphics.Imaging.BitmapInterpolationMode.Fant };
+            var px = await dec.GetPixelDataAsync(Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8, Windows.Graphics.Imaging.BitmapAlphaMode.Straight, tr,
+                Windows.Graphics.Imaging.ExifOrientationMode.IgnoreExifOrientation, Windows.Graphics.Imaging.ColorManagementMode.DoNotColorManage);
+            var d = px.DetachPixelData();
+            double r = 0, g = 0, b = 0, sum = 0;
+            for (var i = 0; i + 3 < d.Length; i += 4)
+            {
+                var a = d[i + 3] / 255.0;
+                if (a < 0.25) continue;
+                double B = d[i], G = d[i + 1], R = d[i + 2];
+                double mx = Math.Max(R, Math.Max(G, B)), mn = Math.Min(R, Math.Min(G, B));
+                var sat = mx < 1 ? 0 : (mx - mn) / mx;
+                var w = a * (0.15 + sat);
+                r += R * w; g += G * w; b += B * w; sum += w;
+            }
+            return sum <= 0 ? null : Windows.UI.Color.FromArgb(255, (byte)(r / sum), (byte)(g / sum), (byte)(b / sum));
+        }
+        catch { return null; }
+    }
+
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
 
     /// <summary>HKCU only, so no administrator rights are needed. In portable mode this points at the current folder.</summary>

@@ -38,7 +38,9 @@ internal sealed class TrayIcon : IDisposable
     private readonly SubclassProc _proc; // keep alive
     private bool _added;
 
-    public event Action? OpenRequested, ScanRequested, ExitRequested;
+    public event Action? OpenRequested, ToggleRequested, ScanRequested, ToggleIconRequested, ExitRequested;
+    /// <summary>Whether the floating desktop icon is currently shown (menu text).</summary>
+    public bool IconVisible { get; set; }
 
     public TrayIcon(IntPtr hwnd) { _hwnd = hwnd; _proc = WndProc; }
 
@@ -66,19 +68,20 @@ internal sealed class TrayIcon : IDisposable
         if (msg == WM_TRAY)
         {
             var ev = (uint)l.ToInt64() & 0xFFFF;
-            if (ev == WM_LBUTTONUP) OpenRequested?.Invoke();
+            if (ev == WM_LBUTTONUP) ToggleRequested?.Invoke();          // left click: show / hide
             else if (ev == WM_RBUTTONUP)
             {
                 var menu = CreatePopupMenu();
-                AppendMenu(menu, MF_STRING, 1, "Open GameIndex");
-                AppendMenu(menu, MF_STRING, 2, "Scan for games");
+                AppendMenu(menu, MF_STRING, 1, Loc.T("Open GameIndex"));
+                AppendMenu(menu, MF_STRING, 2, Loc.T("Scan for games"));
+                AppendMenu(menu, MF_STRING, 4, Loc.T(IconVisible ? "Hide desktop icon" : "Show desktop icon"));
                 AppendMenu(menu, MF_SEPARATOR, 0, null);
-                AppendMenu(menu, MF_STRING, 3, "Exit");
+                AppendMenu(menu, MF_STRING, 3, Loc.T("Exit GameIndex"));
                 GetCursorPos(out var p);
                 SetForegroundWindow(_hwnd);
                 var cmd = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, p.X, p.Y, 0, _hwnd, IntPtr.Zero);
                 DestroyMenu(menu);
-                if (cmd == 1) OpenRequested?.Invoke(); else if (cmd == 2) ScanRequested?.Invoke(); else if (cmd == 3) ExitRequested?.Invoke();
+                if (cmd == 1) OpenRequested?.Invoke(); else if (cmd == 2) ScanRequested?.Invoke(); else if (cmd == 4) ToggleIconRequested?.Invoke(); else if (cmd == 3) ExitRequested?.Invoke();
             }
             return IntPtr.Zero;
         }

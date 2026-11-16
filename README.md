@@ -143,3 +143,16 @@ moving a slider; UI text translation visits each element exactly once.
   issues). They are an original airy-chime design, *not* a copy of any console's sound. Re-run the script to tweak them. Toggle in Settings.
 * Artwork without a wide background (icons / covers) is shown in a glass tile at most at its own resolution, and the scene is tinted with the
   artwork's dominant colour.
+
+## Look & feel (v-next)
+* **Rounded window**: Windows 11 → DWM round corners (smooth). Windows 10 → rounded clip region (edges are not anti-aliased). Maximized = square.
+  Sidebar, cards, tiles, toolbar controls and pills are all rounded; the sidebar floats as its own glass panel.
+* **Sidebar**: compact by default (icons only). Every entry shows its name in a tooltip; section headers (PLATFORMS / CATEGORIES) become thin dividers
+  instead of clipped text; ☰ expands it to full labels. Add / Scan / Settings buttons also have tooltips.
+* **Game info** slides/fades in when you change game; tiles have icons, achievements show a progress bar; cards highlight on hover without moving.
+
+## Floating desktop icon – troubleshooting
+The icon is a 152 DIP window cut to a circle (Windows will not create smaller top-level windows). It is shown at the bottom-right of the primary
+screen by default and stays visible while GameIndex is open (optional: Settings → *Hide the desktop icon while GameIndex is open*).
+Drag to move, click to show/hide GameIndex, right-click for the menu, tray menu → *Show desktop icon*. If it does not appear, open
+`Logs/gameindex-<date>.log` and look for `Floating icon created` or `Floating icon could not be shown`.

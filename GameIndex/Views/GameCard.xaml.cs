@@ -28,6 +28,8 @@ public sealed partial class GameCard : UserControl
     {
         InitializeComponent();
         _handler = OnGameProperty;
+        PointerEntered += (_, _) => { if (Game?.IsSelected != true) Ring.Opacity = 0.35; };     // hover highlight only, cards never move
+        PointerExited += (_, _) => { if (Game?.IsSelected != true) Ring.Opacity = 0; };
         Tapped += (_, _) => Game?.RequestSelect();
         DoubleTapped += (_, _) => Game?.RequestLaunch();
         Loaded += (_, _) => { if (Game is not null) { Game.PropertyChanged -= _handler; Game.PropertyChanged += _handler; Refresh(); Apply(false); } };
@@ -53,6 +55,7 @@ public sealed partial class GameCard : UserControl
     {
         var g = Game;
         if (g is null) return;
+        ToolTipService.SetToolTip(Slot, $"{g.Title}  •  {g.PlatformName}");
         FavIcon.Visibility = g.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
         RunDot.Visibility = g.IsRunning ? Visibility.Visible : Visibility.Collapsed;
         Card.Opacity = g.Model.IsInstalled ? 1 : 0.5;

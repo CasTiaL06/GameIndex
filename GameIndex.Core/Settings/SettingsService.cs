@@ -24,7 +24,8 @@ public sealed class AppSettings
     public bool MinimizeToTray { get; set; }
     public bool HotkeyEnabled { get; set; } = true;        // global show/hide hotkey
     public string Hotkey { get; set; } = "Alt+G";
-    public bool FloatingIconEnabled { get; set; } = true;  // draggable animated desktop icon
+    public bool FloatingIconEnabled { get; set; } = true;
+    public bool FloatingHideWhenOpen { get; set; }          // hide the desktop icon while the main window is open  // draggable animated desktop icon
     public int FloatingX { get; set; } = int.MinValue;     // remembered position (int.MinValue = default corner)
     public int FloatingY { get; set; } = int.MinValue;
     public bool SoundsEnabled { get; set; } = true;

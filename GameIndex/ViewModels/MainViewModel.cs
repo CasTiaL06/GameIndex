@@ -12,11 +12,26 @@ namespace GameIndex.ViewModels;
 public enum ViewMode { Carousel, Grid, List }
 public enum SortMode { RecentlyPlayed, Alphabetical, MostPlayed, LeastPlayed, RecentlyAdded, LargestGames, AchievementCompletion }
 
-public sealed record NavItem(string Key, string Glyph, string Label, bool IsHeader = false)
+/// <summary>Sidebar entry. In the compact (icon-only) sidebar labels and header texts are hidden, headers become thin dividers, and a tooltip names the item.</summary>
+public sealed partial class NavItem : ObservableObject
 {
+    public NavItem(string key, string glyph, string label, bool isHeader = false) { Key = key; Glyph = glyph; Label = label; IsHeader = isHeader; }
+    public string Key { get; }
+    public string Glyph { get; }
+    public string Label { get; }
+    public bool IsHeader { get; }
+    [ObservableProperty] private bool _isExpanded;
+
     public bool IsSelectable => !IsHeader;
-    public Visibility HeaderVisibility => IsHeader ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ItemVisibility => IsHeader ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility LabelVisibility => !IsHeader && IsExpanded ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility HeaderTextVisibility => IsHeader && IsExpanded ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility DividerVisibility => IsHeader && !IsExpanded ? Visibility.Visible : Visibility.Collapsed;
+
+    partial void OnIsExpandedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(LabelVisibility)); OnPropertyChanged(nameof(HeaderTextVisibility)); OnPropertyChanged(nameof(DividerVisibility));
+    }
 }
 
 public sealed partial class MainViewModel : ObservableObject
@@ -42,6 +57,8 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private Visibility _emptyVisibility = Visibility.Collapsed;
     [ObservableProperty] private Visibility _detailsVisibility = Visibility.Collapsed;
     [ObservableProperty] private string _emptyMessage = "";
+    [ObservableProperty] private bool _sidebarExpanded;
+    partial void OnSidebarExpandedChanged(bool value) { foreach (var n in NavItems) n.IsExpanded = value; }
 
     public ObservableCollection<NavItem> NavItems { get; } = new();
     public ObservableCollection<string> PlatformOptions { get; } = new() { AllPlatforms };
@@ -112,7 +129,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void RebuildNav(List<Game> games, List<string> cats)
     {
         NavItems.Clear();
-        void A(string k, string g, string l, bool h = false) => NavItems.Add(new NavItem(k, g, Loc.T(l), h));
+        void A(string k, string g, string l, bool h = false) => NavItems.Add(new NavItem(k, g, Loc.T(l), h) { IsExpanded = SidebarExpanded });
         A("home", "\uE80F", "Home"); A("all", "\uE7FC", "All Games"); A("installed", "\uE73E", "Installed Games"); A("favorites", "\uE734", "Favorites");
         A("recent", "\uE81C", "Recently Played"); A("mostplayed", "\uE9D2", "Most Played"); A("added", "\uE710", "Recently Added");
         var plats = games.GroupBy(g => g.PlatformId).Select(x => (Id: x.Key, Name: x.First().PlatformName)).OrderBy(x => x.Name).ToList();

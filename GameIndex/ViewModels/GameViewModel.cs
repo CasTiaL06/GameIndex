@@ -94,6 +94,7 @@ public sealed partial class GameViewModel : ObservableObject
             return Loc.T(HasSteamKey ? "No data (private profile or no achievements)" : "Add a Steam Web API key in Settings");
         }
     }
+    public double AchievementProgress => AchievementPercent;     // 0..100, or -1 when unavailable (progress bar hidden)
     public int AchievementPercent => Model.AchUnlocked is int u && Model.AchTotal is int t && t > 0 ? (int)Math.Round(u * 100.0 / t) : -1;
 
     public string LastPlayedText => Model.LastPlayedUtc is DateTime d ? Format.Date(d) : Loc.T("Never");

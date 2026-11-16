@@ -28,14 +28,14 @@
                         <StackPanel Spacing="16" Padding="0,8,12,8">
                             <Grid ColumnSpacing="12">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <local:StatTile Grid.Column="0" Label="TOTAL PLAYTIME" Value="{x:Bind Vm.Selected.PlaytimeText, Mode=OneWay}" Detail="{x:Bind Vm.Selected.PlaytimeDetail, Mode=OneWay}" />
-                                <local:StatTile Grid.Column="1" Label="GAME SIZE" Value="{x:Bind Vm.Selected.SizeText, Mode=OneWay}" Detail="{x:Bind Vm.Selected.SizeDetail, Mode=OneWay}" />
-                                <local:StatTile Grid.Column="2" Label="LAST PLAYED" Value="{x:Bind Vm.Selected.LastPlayedText, Mode=OneWay}" Detail="{x:Bind Vm.Selected.LastPlayedDetail, Mode=OneWay}" />
+                                <local:StatTile Grid.Column="0" Glyph="&#xE121;" Label="TOTAL PLAYTIME" Value="{x:Bind Vm.Selected.PlaytimeText, Mode=OneWay}" Detail="{x:Bind Vm.Selected.PlaytimeDetail, Mode=OneWay}" />
+                                <local:StatTile Grid.Column="1" Glyph="&#xEDA2;" Label="GAME SIZE" Value="{x:Bind Vm.Selected.SizeText, Mode=OneWay}" Detail="{x:Bind Vm.Selected.SizeDetail, Mode=OneWay}" />
+                                <local:StatTile Grid.Column="2" Glyph="&#xE787;" Label="LAST PLAYED" Value="{x:Bind Vm.Selected.LastPlayedText, Mode=OneWay}" Detail="{x:Bind Vm.Selected.LastPlayedDetail, Mode=OneWay}" />
                             </Grid>
                             <Grid ColumnSpacing="12">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <local:StatTile Grid.Column="0" Label="INSTALLED DLC" Value="{x:Bind Vm.Selected.DlcText, Mode=OneWay}" Detail="{x:Bind Vm.Selected.DlcDetail, Mode=OneWay}" />
-                                <local:StatTile Grid.Column="1" Label="ACHIEVEMENTS" Value="{x:Bind Vm.Selected.AchievementsText, Mode=OneWay}" Detail="{x:Bind Vm.Selected.AchievementsDetail, Mode=OneWay}" />
+                                <local:StatTile Grid.Column="0" Glyph="&#xE7B8;" Label="INSTALLED DLC" Value="{x:Bind Vm.Selected.DlcText, Mode=OneWay}" Detail="{x:Bind Vm.Selected.DlcDetail, Mode=OneWay}" />
+                                <local:StatTile Grid.Column="1" Glyph="&#xE734;" Progress="{x:Bind Vm.Selected.AchievementProgress, Mode=OneWay}" Label="ACHIEVEMENTS" Value="{x:Bind Vm.Selected.AchievementsText, Mode=OneWay}" Detail="{x:Bind Vm.Selected.AchievementsDetail, Mode=OneWay}" />
                             </Grid>
                             <TextBlock Text="LOCATION" FontSize="11" CharacterSpacing="120" Foreground="{StaticResource AccentBrush}" />
                             <TextBlock Text="Installation directory" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" />

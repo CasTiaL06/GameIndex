@@ -32,6 +32,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _hotkeyEnabled = true;
     [ObservableProperty] private int _hotkeyIndex;
     [ObservableProperty] private bool _floatingIconEnabled = true;
+    [ObservableProperty] private bool _floatingHideWhenOpen;
     [ObservableProperty] private bool _soundsEnabled = true;
     public event Action? ResetIconRequested;
     public void RequestResetIcon() => ResetIconRequested?.Invoke();
@@ -83,7 +84,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         var s = _h.Settings.Current;
         ThemeIndex = Math.Max(0, Array.IndexOf(Themes, s.Theme)); AccentHex = s.AccentColor;
         TaskbarJumpList = s.TaskbarJumpList; HotkeyEnabled = s.HotkeyEnabled; HotkeyIndex = Math.Max(0, Array.IndexOf(Hotkeys, s.Hotkey));
-        FloatingIconEnabled = s.FloatingIconEnabled; SoundsEnabled = s.SoundsEnabled; _lastStartWithWindows = s.StartWithWindows;
+        FloatingIconEnabled = s.FloatingIconEnabled; FloatingHideWhenOpen = s.FloatingHideWhenOpen; SoundsEnabled = s.SoundsEnabled; _lastStartWithWindows = s.StartWithWindows;
         LanguageIndex = Math.Max(0, Array.IndexOf(Langs, s.Language)); TransparencyEnabled = s.TransparencyEnabled; OverlayOpacity = s.OverlayOpacityPercent; Transparency = s.TransparencyPercent;
         BackdropIndex = Math.Max(0, Array.IndexOf(Backdrops, s.Backdrop)); BackgroundDim = s.BackgroundDimPercent;
         AnimationsEnabled = s.AnimationsEnabled; AnimationSpeed = s.AnimationSpeedPercent; SidebarCompact = s.SidebarCompact;
@@ -135,7 +136,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         s.Backdrop = Backdrops[Math.Clamp(BackdropIndex, 0, 3)]; s.BackgroundDimPercent = (int)BackgroundDim;
         s.AnimationsEnabled = AnimationsEnabled; s.AnimationSpeedPercent = (int)AnimationSpeed; s.SidebarCompact = SidebarCompact;
         s.TaskbarJumpList = TaskbarJumpList; s.HotkeyEnabled = HotkeyEnabled; s.Hotkey = Hotkeys[Math.Clamp(HotkeyIndex, 0, Hotkeys.Length - 1)];
-        s.FloatingIconEnabled = FloatingIconEnabled; s.SoundsEnabled = SoundsEnabled;
+        s.FloatingIconEnabled = FloatingIconEnabled; s.FloatingHideWhenOpen = FloatingHideWhenOpen; s.SoundsEnabled = SoundsEnabled;
         s.StartWithWindows = StartWithWindows; s.MinimizeToTray = MinimizeToTray; s.AutoDetectGames = AutoDetect;
         s.ScanIntervalMinutes = Math.Max(1, (int)ScanInterval); s.DefaultLibraryView = Views[Math.Clamp(DefaultViewIndex, 0, 2)];
         s.AutoMetadataRefresh = AutoMetadata; s.SteamId64 = string.IsNullOrWhiteSpace(SteamId) ? null : SteamId.Trim();

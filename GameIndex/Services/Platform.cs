@@ -85,6 +85,31 @@ public static class Platform
         catch { return null; }
     }
 
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr h, int attribute, ref int value, int size);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int SetWindowRgn(IntPtr h, IntPtr region, bool redraw);
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern IntPtr CreateRoundRectRgn(int l, int t, int r, int b, int w, int h);
+
+    public static bool IsWindows11 => Environment.OSVersion.Version.Build >= 22000;
+
+    /// <summary>
+    /// Rounded window corners. Windows 11: ask DWM for round corners (smooth, anti-aliased, keeps the shadow).
+    /// Windows 10 has no such API, so the window is clipped with a rounded region (not anti-aliased, but still rounded).
+    /// Maximized windows are always square.
+    /// </summary>
+    public static void RoundWindow(Microsoft.UI.Xaml.Window w, int radiusPx = 26)
+    {
+        try
+        {
+            var h = Hwnd(w);
+            if (IsWindows11) { var round = 2; DwmSetWindowAttribute(h, 33 /* DWMWA_WINDOW_CORNER_PREFERENCE */, ref round, sizeof(int)); return; }
+            var maximized = w.AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter { State: Microsoft.UI.Windowing.OverlappedPresenterState.Maximized };
+            if (maximized) { SetWindowRgn(h, IntPtr.Zero, true); return; }
+            var s = w.AppWindow.Size;
+            SetWindowRgn(h, CreateRoundRectRgn(0, 0, s.Width + 1, s.Height + 1, radiusPx, radiusPx), true);
+        }
+        catch { /* purely cosmetic */ }
+    }
+
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
 
     /// <summary>HKCU only, so no administrator rights are needed. In portable mode this points at the current folder.</summary>

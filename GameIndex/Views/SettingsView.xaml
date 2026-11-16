@@ -53,6 +53,7 @@
                         <ComboBoxItem Content="Alt + G" /><ComboBoxItem Content="Ctrl + Alt + G" /><ComboBoxItem Content="Ctrl + Shift + G" /><ComboBoxItem Content="F9" />
                     </ComboBox>
                     <ToggleSwitch Header="Floating desktop icon (drag it anywhere, click to open GameIndex)" IsOn="{x:Bind Vm.FloatingIconEnabled, Mode=TwoWay}" />
+                    <ToggleSwitch Header="Hide the desktop icon while GameIndex is open" IsOn="{x:Bind Vm.FloatingHideWhenOpen, Mode=TwoWay}" />
                     <Button Content="Reset icon position" Click="ResetIcon_Click" />
                     <ToggleSwitch Header="Sounds (startup, open and close)" IsOn="{x:Bind Vm.SoundsEnabled, Mode=TwoWay}" />
                     <Button Content="Play startup sound" Click="TestSound_Click" />

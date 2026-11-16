@@ -57,6 +57,7 @@ public sealed partial class MainWindow : Window
         DetailsHost.Initialize(ViewModel);
 
         ExtendsContentIntoTitleBar = true;
+        Platform.RoundWindow(this);
         SetTitleBar(TitleDrag);
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1560, 940));
         AppWindow.TitleBar.ButtonBackgroundColor = Colors.Transparent;
@@ -82,7 +83,11 @@ public sealed partial class MainWindow : Window
         {
             if (!_exiting && _h.Settings.Current.MinimizeToTray) { e.Cancel = true; HideMain(true); }
         };
-        AppWindow.Changed += (_, a) => { if ((a.DidSizeChange || a.DidPositionChange) && !_animating) RememberNormal(); };
+        AppWindow.Changed += (_, a) =>
+        {
+            if ((a.DidSizeChange || a.DidPositionChange) && !_animating) RememberNormal();
+            if (a.DidSizeChange) Platform.RoundWindow(this);
+        };
         Closed += (_, _) => { _floating?.Close(); _hotkey.Dispose(); _pad.Dispose(); _tray.Dispose(); _h.Dispose(); };
 
         ViewModel.SelectionChanged += OnSelectionChanged;
@@ -166,6 +171,7 @@ public sealed partial class MainWindow : Window
         if (MoreButton.Flyout is MenuFlyout mf) foreach (var it in mf.Items) if (it is MenuFlyoutItem m) Loc.FixText(m);
         _ = ViewModel.ReloadAsync();           // rebuilds nav labels, status texts, dates and empty-state message
         _settingsVm.RefreshIntegrations();
+        UpdateSidebar();
     }
 
     private void ApplyAppearance()
@@ -175,7 +181,7 @@ public sealed partial class MainWindow : Window
         var s = _h.Settings.Current;
         ThemeService.Apply(s, this, Root);
         DimOverlay.Opacity = Math.Clamp(s.BackgroundDimPercent / 100.0, 0, 0.9);
-        Sidebar.Width = _sidebarExpanded || !s.SidebarCompact ? 230 : 64;
+        UpdateSidebar();
         _tray.Show();                                  // the tray icon is always present (left click = show/hide)
         ApplyShell();
         _currentBg = null; UpdateBackground(false);
@@ -184,7 +190,25 @@ public sealed partial class MainWindow : Window
     private void MenuButton_Click(object sender, RoutedEventArgs e)
     {
         _sidebarExpanded = !(_sidebarExpanded || !_h.Settings.Current.SidebarCompact);
-        Sidebar.Width = _sidebarExpanded || !_h.Settings.Current.SidebarCompact ? 230 : 64;
+        UpdateSidebar();
+    }
+
+    private bool SidebarOpen => _sidebarExpanded || !_h.Settings.Current.SidebarCompact;
+
+    /// <summary>Compact sidebar = icons only (no clipped texts), every item explains itself in a tooltip; the ☰ button expands it.</summary>
+    private void UpdateSidebar()
+    {
+        var open = SidebarOpen;
+        Sidebar.Width = open ? 236 : 72;
+        ViewModel.SidebarExpanded = open;                      // nav items hide labels / turn headers into dividers
+        foreach (var (btn, text, tip) in new[] { (AddButton, AddText, "Add Game"), (ScanButton, ScanText, "Scan for games"), (SettingsButton, SettingsText, "Settings") })
+        {
+            text.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+            btn.HorizontalContentAlignment = open ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+            btn.Padding = open ? new Thickness(14, 0, 14, 0) : new Thickness(0);
+            ToolTipService.SetToolTip(btn, Loc.T(tip));
+        }
+        ToolTipService.SetToolTip(MenuButton, Loc.T(open ? "Collapse menu" : "Expand menu"));
     }
 
     private void ShowFromTray() => DispatcherQueue.TryEnqueue(() => ShowMain(true));
@@ -209,13 +233,26 @@ public sealed partial class MainWindow : Window
         {
             if (_floating is null)
             {
-                _floating = new FloatingIconWindow(s, (x, y) => { s.FloatingX = x; s.FloatingY = y; _h.Settings.Save(); });
-                _floating.Clicked += () => DispatcherQueue.TryEnqueue(() => ShowMain(true));
-                _floating.ScanRequested += () => DispatcherQueue.TryEnqueue(() => _ = ViewModel.ScanNowAsync());
-                _floating.HideIconRequested += () => DispatcherQueue.TryEnqueue(() => { s.FloatingIconEnabled = false; _h.Settings.Save(); _settingsVm.Load(); ApplyShell(); });
-                _floating.ExitRequested += () => DispatcherQueue.TryEnqueue(() => { _exiting = true; Close(); });
+                try
+                {
+                    _floating = new FloatingIconWindow(s, (x, y) => { s.FloatingX = x; s.FloatingY = y; _h.Settings.Save(); });
+                    _floating.Clicked += () => DispatcherQueue.TryEnqueue(() => { if (AppWindow.IsVisible && Platform.IsForeground(this)) HideMain(true); else ShowMain(true); });
+                    _floating.ScanRequested += () => DispatcherQueue.TryEnqueue(() => _ = ViewModel.ScanNowAsync());
+                    _floating.HideIconRequested += () => DispatcherQueue.TryEnqueue(() => { s.FloatingIconEnabled = false; _h.Settings.Save(); _settingsVm.Load(); ApplyShell(); });
+                    _floating.ExitRequested += () => DispatcherQueue.TryEnqueue(() => { _exiting = true; Close(); });
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("Could not create the floating desktop icon", ex);
+                    ViewModel.StatusText = Loc.T("The floating desktop icon could not be created (see Logs).");
+                    _floating = null;
+                }
             }
-            if (AppWindow.IsVisible) _floating.HideIcon(); else _floating.ShowIcon();
+            if (_floating is not null)
+            {
+                if (AppWindow.IsVisible && s.FloatingHideWhenOpen) _floating.HideIcon();
+                else if (!_floating.IsShown) { _floating.ShowIcon(); if (AppWindow.IsVisible) Activate(); }   // showing the icon activates it; give focus back
+            }
         }
         else if (_floating is not null) { var f = _floating; _floating = null; f.Close(); }
         _tray.IconVisible = _floating?.IsShown == true;
@@ -287,8 +324,8 @@ public sealed partial class MainWindow : Window
             if (!maximized) AppWindow.MoveAndResize(target);
             AppWindow.Show(); Activate(); Platform.Foreground(this);
         }
-        _floating?.HideIcon();
-        _tray.IconVisible = false;
+        if (s.FloatingHideWhenOpen) _floating?.HideIcon();
+        _tray.IconVisible = _floating?.IsShown == true;
     }
 
     private void HideMain(bool animate)
@@ -426,8 +463,28 @@ public sealed partial class MainWindow : Window
         BgArtHost.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0x22, 255, 255, 255));
     }
 
+    private long _lastInfoId = -1;
+    private Storyboard? _infoSb;
+
+    private void AnimateInfo()
+    {
+        if (!_h.Settings.Current.AnimationsEnabled) return;
+        _infoSb?.Stop();
+        InfoPanel.Opacity = 0; InfoXf.TranslateY = 16;
+        var sb = new Storyboard();
+        void Add(DependencyObject t, string prop, double to)
+        {
+            var a = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation { To = to, Duration = new Duration(TimeSpan.FromMilliseconds(280)), EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            Storyboard.SetTarget(a, t); Storyboard.SetTargetProperty(a, prop); sb.Children.Add(a);
+        }
+        Add(InfoPanel, "Opacity", 1); Add(InfoXf, "TranslateY", 0);
+        sb.Completed += (_, _) => { InfoPanel.Opacity = 1; InfoXf.TranslateY = 0; sb.Stop(); };
+        _infoSb = sb; sb.Begin();
+    }
+
     private void OnSelectionChanged()
     {
+        if (ViewModel.Selected is { } cur && cur.Id != _lastInfoId) { _lastInfoId = cur.Id; AnimateInfo(); }
         UpdateBackground();
         UpdateArt();
         CenterSelected();

@@ -28,6 +28,7 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.*" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.*" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.*" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.*" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\GameIndex.Core\GameIndex.Core.csproj" />
@@ -35,5 +36,6 @@
   <ItemGroup>
     <Content Include="Assets\GameIndex.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\Sounds\*.wav" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\FloatingIcons\*.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

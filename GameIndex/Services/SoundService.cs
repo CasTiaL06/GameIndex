@@ -8,6 +8,9 @@ public static class SoundService
     [DllImport("winmm.dll", CharSet = CharSet.Unicode)] private static extern bool PlaySound(string? sound, IntPtr module, uint flags);
     private const uint SND_ASYNC = 0x1, SND_NODEFAULT = 0x2, SND_FILENAME = 0x20000;
 
+    /// <summary>Plays the chosen startup chime ("aurora", "crystal", "deep", "pulse", "retro", "zen"); "off" is silent.</summary>
+    public static void PlayStartup(string id, bool enabled = true) { if (id != "off") Play("startup_" + id, enabled); }
+
     public static void Play(string name, bool enabled = true)
     {
         if (!enabled) return;

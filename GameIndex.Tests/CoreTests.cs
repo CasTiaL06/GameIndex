@@ -243,3 +243,30 @@ public class IconCandidateTests
         finally { Directory.Delete(d, true); }
     }
 }
+
+
+public class DlcDetectionTests
+{
+    [Fact] public void Gog_InfoFile_RootGameId_MarksDlc()
+    {
+        var dlc = GogIntegration.ParseInfoDlc("{\"gameId\":\"222\",\"rootGameId\":\"111\",\"name\":\"Expansion\"}", "111");
+        Assert.Single(dlc);
+        Assert.Equal("Expansion", dlc[0].Name);
+        Assert.Empty(GogIntegration.ParseInfoDlc("{\"gameId\":\"111\",\"rootGameId\":\"111\",\"name\":\"Base\"}", "111"));   // base game is not a DLC
+        Assert.Empty(GogIntegration.ParseInfoDlc("{\"gameId\":\"333\",\"rootGameId\":\"999\"}", "111"));                             // belongs to another game
+    }
+
+    [Fact] public void FolderScanner_CountsOnlyNonEmptyDlcFolders()
+    {
+        var d = Path.Combine(Path.GetTempPath(), "gi-dlc-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(d, "DLC", "Pack1")); Directory.CreateDirectory(Path.Combine(d, "DLC", "EmptyPack"));
+        File.WriteAllText(Path.Combine(d, "DLC", "Pack1", "data.pak"), "x");
+        try
+        {
+            var r = GameIndex.Core.Dlc.FolderDlcScanner.Scan(d);
+            Assert.Single(r);
+            Assert.Equal("Pack1", r[0].Name);
+        }
+        finally { Directory.Delete(d, true); }
+    }
+}

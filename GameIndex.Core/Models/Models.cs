@@ -58,6 +58,8 @@ public sealed class Game
     public DateTime? AchUpdatedUtc { get; set; }
     public int? DlcInstalled { get; set; }
     public DateTime? DlcUpdatedUtc { get; set; }
+    /// <summary>"platform" = reported by the platform, "folders" = estimated from DLC folders in the game directory.</summary>
+    public string? DlcSource { get; set; }
     public DateTime? StatsUpdatedUtc { get; set; }
 
     public string PlatformName => !string.IsNullOrWhiteSpace(CustomPlatformName) ? CustomPlatformName! : PlatformIds.DisplayName(PlatformId);

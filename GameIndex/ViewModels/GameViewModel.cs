@@ -81,7 +81,7 @@ public sealed partial class GameViewModel : ObservableObject
 
     private bool DlcSupported => Capabilities.TryGetValue(Model.PlatformId, out var c) && (c & PlatformCapabilities.InstalledDlc) != 0 && !Model.IsManual;
     public string DlcText => Model.DlcInstalled is int n ? n.ToString(CultureInfo.CurrentCulture) : Loc.T(DlcSupported && Model.DlcUpdatedUtc is null ? "Checking…" : "Not available");
-    public string DlcDetail => Model.DlcInstalled is not null ? Loc.T("Installed DLC only") : (DlcSupported ? Loc.T("Could not be read") : Loc.F("Not exposed by {0}", Model.PlatformName));
+    public string DlcDetail => Model.DlcSource == "folders" && Model.DlcInstalled is not null ? Loc.T("Estimated from the game's DLC folders") : Model.DlcInstalled is not null ? Loc.T("Installed DLC only") : (DlcSupported ? Loc.T("Could not be read") : Loc.F("Not exposed by {0}", Model.PlatformName));
 
     public string AchievementsText => Model.AchUnlocked is int u && Model.AchTotal is int t && t > 0 ? Loc.F("{0} / {1} UNLOCKED", u, t) : Loc.T("NOT AVAILABLE");
     public string AchievementsDetail

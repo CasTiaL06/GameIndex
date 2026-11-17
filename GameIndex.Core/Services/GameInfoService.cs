@@ -87,7 +87,7 @@ public sealed class GameInfoService
                 if (auto && !g.IsManual)
                 {
                     if (DateTime.UtcNow - g.StatsUpdatedUtc > TimeSpan.FromHours(1) || g.StatsUpdatedUtc is null) kinds |= RefreshKind.Stats;
-                    if (g.DlcUpdatedUtc is null || DateTime.UtcNow - g.DlcUpdatedUtc > TimeSpan.FromDays(1)) kinds |= RefreshKind.Dlc;
+                    if (g.DlcUpdatedUtc is null || g.DlcSource is null || DateTime.UtcNow - g.DlcUpdatedUtc > TimeSpan.FromDays(1)) kinds |= RefreshKind.Dlc;   // DlcSource null = checked by an older version: re-check once
                     if (g.PlatformId == PlatformIds.Steam && hasKey && (g.AchUpdatedUtc is null || DateTime.UtcNow - g.AchUpdatedUtc > TimeSpan.FromDays(1))) kinds |= RefreshKind.Achievements;
                 }
                 if (kinds == RefreshKind.None) continue;

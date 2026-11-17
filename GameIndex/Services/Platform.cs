@@ -32,6 +32,8 @@ public static class Platform
 
     private static async Task<string?> ExtractOneAsync(Game g, string exePath)
     {
+        var native = await Task.Run(() => ExtractNativeIcon(g, exePath));
+        if (native is not null) return native;
         try
         {
             var file = await StorageFile.GetFileFromPathAsync(exePath);
@@ -96,18 +98,54 @@ public static class Platform
     /// Windows 10 has no such API, so the window is clipped with a rounded region (not anti-aliased, but still rounded).
     /// Maximized windows are always square.
     /// </summary>
-    public static void RoundWindow(Microsoft.UI.Xaml.Window w, int radiusPx = 26)
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr h);
+
+    /// <summary>
+    /// Corner radius in DIP (0 = square). Small radii on Windows 11 use DWM's smooth rounding; larger radii (and every radius on Windows 10)
+    /// clip the window with a rounded region, whose edge is not anti-aliased. Maximized windows are always square.
+    /// </summary>
+    public static void RoundWindow(Microsoft.UI.Xaml.Window w, int radiusDip = 12)
     {
         try
         {
             var h = Hwnd(w);
-            if (IsWindows11) { var round = 2; DwmSetWindowAttribute(h, 33 /* DWMWA_WINDOW_CORNER_PREFERENCE */, ref round, sizeof(int)); return; }
             var maximized = w.AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter { State: Microsoft.UI.Windowing.OverlappedPresenterState.Maximized };
-            if (maximized) { SetWindowRgn(h, IntPtr.Zero, true); return; }
+            if (IsWindows11) { var pref = radiusDip <= 0 ? 1 /* DONOTROUND */ : 2 /* ROUND */; DwmSetWindowAttribute(h, 33 /* DWMWA_WINDOW_CORNER_PREFERENCE */, ref pref, sizeof(int)); }
+            var needRegion = !maximized && radiusDip > 0 && (!IsWindows11 || radiusDip > 9);
+            if (!needRegion) { SetWindowRgn(h, IntPtr.Zero, true); return; }
+            var r = (int)Math.Round(radiusDip * Math.Max(1.0, GetDpiForWindow(h) / 96.0));
             var s = w.AppWindow.Size;
-            SetWindowRgn(h, CreateRoundRectRgn(0, 0, s.Width + 1, s.Height + 1, radiusPx, radiusPx), true);
+            SetWindowRgn(h, CreateRoundRectRgn(0, 0, s.Width + 1, s.Height + 1, r * 2, r * 2), true);
         }
         catch { /* purely cosmetic */ }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern uint PrivateExtractIconsW(string file, int index, int cx, int cy, IntPtr[] icons, int[] ids, uint count, uint flags);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool DestroyIcon(IntPtr h);
+
+    /// <summary>Extracts the icon resource at the largest available size (alpha preserved) - sharper than a shell thumbnail, which upscales small icons.</summary>
+    private static string? ExtractNativeIcon(Game g, string exe)
+    {
+        var dest = Path.Combine(AppHost.Instance.Paths.IconsDir, $"exe_{g.Id}.png");
+        foreach (var size in new[] { 256, 128, 64, 48 })
+        {
+            var icons = new IntPtr[1]; var ids = new int[1];
+            uint n;
+            try { n = PrivateExtractIconsW(exe, 0, size, size, icons, ids, 1, 0); } catch { return null; }
+            if (n == 0 || n == 0xFFFFFFFF || icons[0] == IntPtr.Zero) continue;
+            try
+            {
+                using var icon = System.Drawing.Icon.FromHandle(icons[0]);
+                using var bmp = icon.ToBitmap();
+                if (bmp.Width < 32) continue;
+                bmp.Save(dest, System.Drawing.Imaging.ImageFormat.Png);
+                return dest;
+            }
+            catch { }
+            finally { DestroyIcon(icons[0]); }
+        }
+        return null;
     }
 
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";

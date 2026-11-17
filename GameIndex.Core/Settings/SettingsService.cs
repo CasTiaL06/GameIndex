@@ -25,6 +25,14 @@ public sealed class AppSettings
     public bool HotkeyEnabled { get; set; } = true;        // global show/hide hotkey
     public string Hotkey { get; set; } = "Alt+G";
     public bool FloatingIconEnabled { get; set; } = true;
+    public string FloatingMode { get; set; } = "desktop";   // desktop = only on the desktop (behind other apps) | always = on top of everything
+    public int FloatingSize { get; set; } = 84;             // orb diameter in DIP
+    public int FloatingOpacity { get; set; } = 92;          // percent
+    public string FloatingStyle { get; set; } = "neon";     // neon | pulse | planet | crystal | minimal | gamepad
+    public bool KeepRunningInBackground { get; set; } = true; // closing the window keeps tray + desktop icon + tracking alive
+    public string StartupSound { get; set; } = "aurora";    // aurora | crystal | deep | pulse | retro | zen | off
+    public string ArtFit { get; set; } = "fit";             // fit = whole image, aspect ratio kept | fill = crop to fill
+    public int WindowRoundness { get; set; } = 12;          // window corner radius in DIP (0 = square)
     public bool FloatingHideWhenOpen { get; set; }          // hide the desktop icon while the main window is open  // draggable animated desktop icon
     public int FloatingX { get; set; } = int.MinValue;     // remembered position (int.MinValue = default corner)
     public int FloatingY { get; set; } = int.MinValue;

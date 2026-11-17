@@ -4,8 +4,12 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using GameIndex.Core.Integrations;
 using GameIndex.Core.Settings;
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace GameIndex.ViewModels;
+
+public sealed record IconStyleItem(string Id, string Name, ImageSource Preview);
 
 public sealed partial class IntegrationRow : ObservableObject
 {
@@ -33,6 +37,19 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private int _hotkeyIndex;
     [ObservableProperty] private bool _floatingIconEnabled = true;
     [ObservableProperty] private bool _floatingHideWhenOpen;
+    [ObservableProperty] private int _floatingModeIndex;
+    [ObservableProperty] private double _floatingSize = 84;
+    [ObservableProperty] private double _floatingOpacity = 92;
+    [ObservableProperty] private int _floatingStyleIndex;
+    [ObservableProperty] private bool _keepRunningInBackground = true;
+    [ObservableProperty] private int _startupSoundIndex;
+    [ObservableProperty] private int _artFitIndex;
+    [ObservableProperty] private double _windowRoundness = 12;
+
+    public IReadOnlyList<IconStyleItem> IconStyles { get; } = new[] { ("neon", "Neon"), ("pulse", "Pulse"), ("planet", "Planet"), ("crystal", "Crystal"), ("minimal", "Minimal"), ("gamepad", "Gamepad") }
+        .Select(x => new IconStyleItem(x.Item1, x.Item2, new BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "FloatingIcons", x.Item1 + "_base.png"))) { DecodePixelWidth = 128 })).ToList();
+
+    public void PreviewStartupSound() => Services.SoundService.PlayStartup(Sounds[Math.Clamp(StartupSoundIndex, 0, Sounds.Length - 1)]);
     [ObservableProperty] private bool _soundsEnabled = true;
     public event Action? ResetIconRequested;
     public void RequestResetIcon() => ResetIconRequested?.Invoke();
@@ -66,7 +83,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     public string BackupPath => string.IsNullOrEmpty(BackupDirectory) ? _h.Paths.BackupsDir : BackupDirectory;
     public string SteamKeyState => Services.Loc.T(string.IsNullOrEmpty(_h.Settings.GetSteamApiKey()) ? "No API key saved" : "API key saved (encrypted with Windows DPAPI)");
 
-    private static readonly string[] Themes = ["Dark", "Light", "System"], Langs = ["en", "tr", "system"], Hotkeys = ["Alt+G", "Ctrl+Alt+G", "Ctrl+Shift+G", "F9"], Backdrops = ["Mica", "MicaAlt", "Acrylic", "None"], Views = ["Carousel", "Grid", "List"];
+    private static readonly string[] Themes = ["Dark", "Light", "System"], Langs = ["en", "tr", "system"], Hotkeys = ["Alt+G", "Ctrl+Alt+G", "Ctrl+Shift+G", "F9"], Modes = ["desktop", "always"], StyleIds = ["neon", "pulse", "planet", "crystal", "minimal", "gamepad"],
+        Sounds = ["aurora", "crystal", "deep", "pulse", "retro", "zen", "off"], Fits = ["fit", "fill"], Backdrops = ["Mica", "MicaAlt", "Acrylic", "None"], Views = ["Carousel", "Grid", "List"];
 
     public SettingsViewModel(AppHost host, Action applied)
     {
@@ -84,7 +102,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         var s = _h.Settings.Current;
         ThemeIndex = Math.Max(0, Array.IndexOf(Themes, s.Theme)); AccentHex = s.AccentColor;
         TaskbarJumpList = s.TaskbarJumpList; HotkeyEnabled = s.HotkeyEnabled; HotkeyIndex = Math.Max(0, Array.IndexOf(Hotkeys, s.Hotkey));
-        FloatingIconEnabled = s.FloatingIconEnabled; FloatingHideWhenOpen = s.FloatingHideWhenOpen; SoundsEnabled = s.SoundsEnabled; _lastStartWithWindows = s.StartWithWindows;
+        FloatingIconEnabled = s.FloatingIconEnabled; FloatingHideWhenOpen = s.FloatingHideWhenOpen;
+        FloatingModeIndex = Math.Max(0, Array.IndexOf(Modes, s.FloatingMode)); FloatingSize = s.FloatingSize; FloatingOpacity = s.FloatingOpacity;
+        FloatingStyleIndex = Math.Max(0, Array.IndexOf(StyleIds, s.FloatingStyle)); KeepRunningInBackground = s.KeepRunningInBackground;
+        StartupSoundIndex = Math.Max(0, Array.IndexOf(Sounds, s.StartupSound)); ArtFitIndex = Math.Max(0, Array.IndexOf(Fits, s.ArtFit)); WindowRoundness = s.WindowRoundness; SoundsEnabled = s.SoundsEnabled; _lastStartWithWindows = s.StartWithWindows;
         LanguageIndex = Math.Max(0, Array.IndexOf(Langs, s.Language)); TransparencyEnabled = s.TransparencyEnabled; OverlayOpacity = s.OverlayOpacityPercent; Transparency = s.TransparencyPercent;
         BackdropIndex = Math.Max(0, Array.IndexOf(Backdrops, s.Backdrop)); BackgroundDim = s.BackgroundDimPercent;
         AnimationsEnabled = s.AnimationsEnabled; AnimationSpeed = s.AnimationSpeedPercent; SidebarCompact = s.SidebarCompact;
@@ -136,7 +157,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         s.Backdrop = Backdrops[Math.Clamp(BackdropIndex, 0, 3)]; s.BackgroundDimPercent = (int)BackgroundDim;
         s.AnimationsEnabled = AnimationsEnabled; s.AnimationSpeedPercent = (int)AnimationSpeed; s.SidebarCompact = SidebarCompact;
         s.TaskbarJumpList = TaskbarJumpList; s.HotkeyEnabled = HotkeyEnabled; s.Hotkey = Hotkeys[Math.Clamp(HotkeyIndex, 0, Hotkeys.Length - 1)];
-        s.FloatingIconEnabled = FloatingIconEnabled; s.FloatingHideWhenOpen = FloatingHideWhenOpen; s.SoundsEnabled = SoundsEnabled;
+        s.FloatingIconEnabled = FloatingIconEnabled; s.FloatingHideWhenOpen = FloatingHideWhenOpen;
+        s.FloatingMode = Modes[Math.Clamp(FloatingModeIndex, 0, 1)]; s.FloatingSize = (int)FloatingSize; s.FloatingOpacity = (int)FloatingOpacity;
+        s.FloatingStyle = StyleIds[Math.Clamp(FloatingStyleIndex, 0, StyleIds.Length - 1)]; s.KeepRunningInBackground = KeepRunningInBackground;
+        s.StartupSound = Sounds[Math.Clamp(StartupSoundIndex, 0, Sounds.Length - 1)]; s.ArtFit = Fits[Math.Clamp(ArtFitIndex, 0, 1)]; s.WindowRoundness = (int)WindowRoundness; s.SoundsEnabled = SoundsEnabled;
         s.StartWithWindows = StartWithWindows; s.MinimizeToTray = MinimizeToTray; s.AutoDetectGames = AutoDetect;
         s.ScanIntervalMinutes = Math.Max(1, (int)ScanInterval); s.DefaultLibraryView = Views[Math.Clamp(DefaultViewIndex, 0, 2)];
         s.AutoMetadataRefresh = AutoMetadata; s.SteamId64 = string.IsNullOrWhiteSpace(SteamId) ? null : SteamId.Trim();

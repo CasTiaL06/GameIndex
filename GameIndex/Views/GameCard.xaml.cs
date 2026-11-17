@@ -68,18 +68,8 @@ public sealed partial class GameCard : UserControl
 
         if (g.CoverImage is { } src)
         {
-            var brush = new ImageBrush { ImageSource = src, Stretch = Stretch.UniformToFill };
-            if (src is Microsoft.UI.Xaml.Media.Imaging.BitmapImage bi)
-            {
-                // Covers close to the card's 120:168 ratio fill it; anything else is fitted completely (never cropped/zoomed)
-                void Fit()
-                {
-                    if (bi.PixelWidth > 0 && bi.PixelHeight > 0)
-                        brush.Stretch = Math.Abs((double)bi.PixelWidth / bi.PixelHeight - 120.0 / 168) > 0.18 ? Stretch.Uniform : Stretch.UniformToFill;
-                }
-                Fit();
-                bi.ImageOpened += (_, _) => Fit();
-            }
+            // "fit" (default) always shows the whole image with its aspect ratio; "fill" crops it to the card
+            var brush = new ImageBrush { ImageSource = src, Stretch = AppHost.Instance.Settings.Current.ArtFit == "fill" ? Stretch.UniformToFill : Stretch.Uniform };
             CoverArt.Background = brush;
             FallbackTitle.Visibility = Visibility.Collapsed; IconImg.Visibility = Visibility.Collapsed; Monogram.Visibility = Visibility.Collapsed;
         }

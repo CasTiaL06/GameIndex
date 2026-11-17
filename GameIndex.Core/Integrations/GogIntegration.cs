@@ -34,10 +34,34 @@ public sealed class GogIntegration : PlatformIntegrationBase
         return new DiscoveryResult(true, games);
     });
 
+    /// <summary>GOG writes one goggame-&lt;id&gt;.info per installed product into the game folder; entries whose rootGameId is the base game are its DLC.</summary>
+    public static IReadOnlyList<DlcInfo> ParseInfoDlc(string json, string rootGameId)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var r = doc.RootElement;
+            string? S(string n) => r.TryGetProperty(n, out var v) ? (v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : v.ToString()) : null;
+            var id = S("gameId"); var root = S("rootGameId");
+            if (id is null || root != rootGameId || id == rootGameId) return [];
+            return [new DlcInfo(id, S("name") ?? $"DLC {id}", true)];
+        }
+        catch { return []; }
+    }
+
     public override Task<Result<IReadOnlyList<DlcInfo>>> GetDlcAsync(Game g, IntegrationContext x, CancellationToken ct) => Task.Run(() =>
     {
-        IReadOnlyList<DlcInfo> list = ReadAll().Where(a => string.Equals(a.DependsOn, g.ExternalId, StringComparison.Ordinal))
-            .Select(a => new DlcInfo(a.Id, a.Name ?? $"DLC {a.Id}", true)).ToList();
+        var map = new Dictionary<string, DlcInfo>();
+        foreach (var a in ReadAll().Where(a => string.Equals(a.DependsOn, g.ExternalId, StringComparison.Ordinal)))
+            map[a.Id] = new DlcInfo(a.Id, a.Name ?? $"DLC {a.Id}", true);
+        try
+        {
+            if (!string.IsNullOrEmpty(g.InstallDir) && Directory.Exists(g.InstallDir))
+                foreach (var f in Directory.EnumerateFiles(g.InstallDir, "goggame-*.info"))
+                    foreach (var d in ParseInfoDlc(File.ReadAllText(f), g.ExternalId)) map[d.ExternalId] = d;
+        }
+        catch (Exception ex) { Log.Warn("GOG info files unreadable: " + ex.Message); }
+        IReadOnlyList<DlcInfo> list = map.Values.ToList();
         return new Result<IReadOnlyList<DlcInfo>>(list);
     }, ct);
 }

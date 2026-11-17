@@ -37,6 +37,12 @@
                     <ComboBox Header="Window material (system blur)" SelectedIndex="{x:Bind Vm.BackdropIndex, Mode=TwoWay}" Width="260">
                         <ComboBoxItem Content="Mica" /><ComboBoxItem Content="Mica Alt" /><ComboBoxItem Content="Acrylic (real blur-behind)" /><ComboBoxItem Content="None (solid)" />
                     </ComboBox>
+                    <Slider Header="Window corner roundness (0 = square)" Minimum="0" Maximum="48" Value="{x:Bind Vm.WindowRoundness, Mode=TwoWay}" Width="420" HorizontalAlignment="Left" />
+                    <TextBlock Text="Up to about 9 uses Windows' smooth rounding; larger values clip the window with a rounded shape (the edge is slightly less smooth)." FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" />
+                    <ComboBox Header="Artwork scaling" SelectedIndex="{x:Bind Vm.ArtFitIndex, Mode=TwoWay}" Width="460">
+                        <ComboBoxItem Content="Fit: show the whole image, keep its aspect ratio" />
+                        <ComboBoxItem Content="Fill: crop the image to fill the space" />
+                    </ComboBox>
                     <Slider Header="Background artwork dimming" Minimum="0" Maximum="80" Value="{x:Bind Vm.BackgroundDim, Mode=TwoWay}" Width="420" HorizontalAlignment="Left" />
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <TextBox Header="Custom fallback background image" Text="{x:Bind Vm.CustomBackground, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Width="420" PlaceholderText="Shown when no game artwork exists" />
@@ -53,15 +59,35 @@
                         <ComboBoxItem Content="Alt + G" /><ComboBoxItem Content="Ctrl + Alt + G" /><ComboBoxItem Content="Ctrl + Shift + G" /><ComboBoxItem Content="F9" />
                     </ComboBox>
                     <ToggleSwitch Header="Floating desktop icon (drag it anywhere, click to open GameIndex)" IsOn="{x:Bind Vm.FloatingIconEnabled, Mode=TwoWay}" />
+                    <ComboBox Header="Desktop icon visibility" SelectedIndex="{x:Bind Vm.FloatingModeIndex, Mode=TwoWay}" Width="460">
+                        <ComboBoxItem Content="Desktop only (hidden behind other apps, e.g. while watching a stream)" />
+                        <ComboBoxItem Content="Always on screen (stays on top of other apps)" />
+                    </ComboBox>
+                    <Slider Header="Desktop icon size" Minimum="48" Maximum="160" Value="{x:Bind Vm.FloatingSize, Mode=TwoWay}" Width="420" HorizontalAlignment="Left" />
+                    <Slider Header="Desktop icon opacity (%)" Minimum="25" Maximum="100" Value="{x:Bind Vm.FloatingOpacity, Mode=TwoWay}" Width="420" HorizontalAlignment="Left" />
+                    <TextBlock Text="Desktop icon style" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" />
+                    <GridView ItemsSource="{x:Bind Vm.IconStyles}" SelectedIndex="{x:Bind Vm.FloatingStyleIndex, Mode=TwoWay}" SelectionMode="Single" MaxWidth="620" HorizontalAlignment="Left">
+                        <GridView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:IconStyleItem">
+                                <StackPanel Width="86" Spacing="4" Padding="4">
+                                    <Image Source="{x:Bind Preview}" Width="64" Height="64" />
+                                    <TextBlock Text="{x:Bind Name}" HorizontalAlignment="Center" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </GridView.ItemTemplate>
+                    </GridView>
                     <ToggleSwitch Header="Hide the desktop icon while GameIndex is open" IsOn="{x:Bind Vm.FloatingHideWhenOpen, Mode=TwoWay}" />
                     <Button Content="Reset icon position" Click="ResetIcon_Click" />
                     <ToggleSwitch Header="Sounds (startup, open and close)" IsOn="{x:Bind Vm.SoundsEnabled, Mode=TwoWay}" />
+                    <ComboBox Header="Startup sound" SelectedIndex="{x:Bind Vm.StartupSoundIndex, Mode=TwoWay}" Width="260">
+                        <ComboBoxItem Content="Aurora" /><ComboBoxItem Content="Crystal" /><ComboBoxItem Content="Deep" /><ComboBoxItem Content="Pulse" /><ComboBoxItem Content="Retro" /><ComboBoxItem Content="Zen" /><ComboBoxItem Content="Off" />
+                    </ComboBox>
                     <Button Content="Play startup sound" Click="TestSound_Click" />
 
 
                     <TextBlock Text="APPLICATION" FontSize="12" CharacterSpacing="150" Foreground="{StaticResource AccentBrush}" Margin="0,18,0,0" />
                     <ToggleSwitch Header="Start with Windows (current user, no admin rights)" IsOn="{x:Bind Vm.StartWithWindows, Mode=TwoWay}" />
-                    <ToggleSwitch Header="Minimize to system tray (closing keeps playtime tracking running)" IsOn="{x:Bind Vm.MinimizeToTray, Mode=TwoWay}" />
+                    <ToggleSwitch Header="Closing the window keeps GameIndex running in the background (tray + desktop icon). Exit completely from the tray menu or Task Manager." IsOn="{x:Bind Vm.KeepRunningInBackground, Mode=TwoWay}" />
                     <ToggleSwitch Header="Taskbar jump list: show recent and favorite games when right-clicking the taskbar icon" IsOn="{x:Bind Vm.TaskbarJumpList, Mode=TwoWay}" />
                     <ToggleSwitch Header="Automatic game detection" IsOn="{x:Bind Vm.AutoDetect, Mode=TwoWay}" />
                     <NumberBox Header="Scan interval (minutes)" Minimum="1" Maximum="1440" SpinButtonPlacementMode="Inline" Value="{x:Bind Vm.ScanInterval, Mode=TwoWay}" Width="200" HorizontalAlignment="Left" />

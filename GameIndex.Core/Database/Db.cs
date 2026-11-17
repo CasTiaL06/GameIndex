@@ -85,7 +85,8 @@ public sealed partial class Db
             ('ea','EA App'),('xbox','Xbox'),('battlenet','Battle.net'),('rockstar','Rockstar Games'),('riot','Riot Client'),
             ('standalone','Standalone'),('manual','Manual');
         INSERT INTO integrations(platform_id) SELECT id FROM platforms;
-        """
+        """,
+        "ALTER TABLE games ADD COLUMN dlc_source TEXT;"
     ];
 
     public void Initialize()
@@ -161,7 +162,7 @@ public sealed partial class Db
             ImportedLastPlayedUtc = Dt(L("imported_last_played_ts")),
             LocalPlaytimeSeconds = L("local_total") ?? 0, LocalLastPlayedUtc = Dt(L("local_last")),
             AchUnlocked = (int?)L("ach_unlocked"), AchTotal = (int?)L("ach_total"), AchUpdatedUtc = Dt(L("ach_updated_ts")),
-            DlcInstalled = (int?)L("dlc_installed"), DlcUpdatedUtc = Dt(L("dlc_updated_ts")), StatsUpdatedUtc = Dt(L("stats_updated_ts"))
+            DlcInstalled = (int?)L("dlc_installed"), DlcUpdatedUtc = Dt(L("dlc_updated_ts")), DlcSource = S("dlc_source"), StatsUpdatedUtc = Dt(L("stats_updated_ts"))
         };
     }
 
@@ -355,7 +356,7 @@ public sealed partial class Db
     }
 
     /// <summary>items == null means "platform cannot tell" (stored as unavailable, never as 0).</summary>
-    public void SetDlcs(long id, IReadOnlyList<DlcInfo>? items)
+    public void SetDlcs(long id, IReadOnlyList<DlcInfo>? items, string? source = null)
     {
         using var c = Open();
         using var tx = c.BeginTransaction();
@@ -363,7 +364,7 @@ public sealed partial class Db
         if (items is not null)
             foreach (var d in items)
                 Exec(c, "INSERT OR REPLACE INTO dlcs(game_id,external_id,name,installed) VALUES(@g,@e,@n,@i)", ("@g", id), ("@e", d.ExternalId), ("@n", d.Name), ("@i", d.Installed ? 1 : 0));
-        Exec(c, "UPDATE games SET dlc_installed=@n, dlc_updated_ts=@t WHERE id=@id", ("@n", items?.Count(d => d.Installed)), ("@t", Format.NowUnix()), ("@id", id));
+        Exec(c, "UPDATE games SET dlc_installed=@n, dlc_updated_ts=@t, dlc_source=@s WHERE id=@id", ("@n", items?.Count(d => d.Installed)), ("@t", Format.NowUnix()), ("@s", source), ("@id", id));
         tx.Commit();
     }
 

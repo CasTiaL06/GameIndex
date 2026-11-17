@@ -34,11 +34,12 @@ public sealed partial class MainWindow : Window
     private List<GameViewModel> _quickAll = new();
     private string _typeBuf = "";
     private DateTime _typeAt = DateTime.MinValue;
-    private FloatingIconWindow? _floating;
+    private FloatingIcon? _floating;
     private GlobalHotkey _hotkey = null!;
     private string? _hotkeyRegistered;
     private Windows.Graphics.RectInt32 _normal;
     private bool _animating, _startHidden;
+    private string _lastDefaultView = "", _lastArtFit = "";
     private readonly Dictionary<string, Windows.UI.Color> _tints = new();
     private Brush? _defaultFallback;
 
@@ -57,7 +58,8 @@ public sealed partial class MainWindow : Window
         DetailsHost.Initialize(ViewModel);
 
         ExtendsContentIntoTitleBar = true;
-        Platform.RoundWindow(this);
+        Platform.RoundWindow(this, host.Settings.Current.WindowRoundness);
+        _lastDefaultView = host.Settings.Current.DefaultLibraryView; _lastArtFit = host.Settings.Current.ArtFit;
         SetTitleBar(TitleDrag);
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1560, 940));
         AppWindow.TitleBar.ButtonBackgroundColor = Colors.Transparent;
@@ -81,12 +83,12 @@ public sealed partial class MainWindow : Window
 
         AppWindow.Closing += (_, e) =>
         {
-            if (!_exiting && _h.Settings.Current.MinimizeToTray) { e.Cancel = true; HideMain(true); }
+            if (!_exiting && _h.Settings.Current.KeepRunningInBackground) { e.Cancel = true; HideMain(true); }   // only the window closes; tray, desktop icon and tracking keep running
         };
         AppWindow.Changed += (_, a) =>
         {
             if ((a.DidSizeChange || a.DidPositionChange) && !_animating) RememberNormal();
-            if (a.DidSizeChange) Platform.RoundWindow(this);
+            if (a.DidSizeChange) Platform.RoundWindow(this, _h.Settings.Current.WindowRoundness);
         };
         Closed += (_, _) => { _floating?.Close(); _hotkey.Dispose(); _pad.Dispose(); _tray.Dispose(); _h.Dispose(); };
 
@@ -104,7 +106,7 @@ public sealed partial class MainWindow : Window
         {
             ApplyAppearance();
             if (_startHidden) { AppWindow.Hide(); AppWindow.MoveAndResize(DefaultRect()); _startHidden = false; }
-            else SoundService.Play("startup", _h.Settings.Current.SoundsEnabled);
+            else SoundService.PlayStartup(_h.Settings.Current.StartupSound, _h.Settings.Current.SoundsEnabled);
             ApplyShell();
             if (_h.Paths.Warning is not null) ViewModel.StatusText = _h.Paths.Warning;
             ViewBar.SelectedItem = ViewBar.Items[(int)ViewModel.ViewMode];
@@ -179,6 +181,14 @@ public sealed partial class MainWindow : Window
         ApplyLanguage();
         ScheduleJumpList();
         var s = _h.Settings.Current;
+        if (s.DefaultLibraryView != _lastDefaultView)            // "Default library view" applies immediately
+        {
+            _lastDefaultView = s.DefaultLibraryView;
+            if (Enum.TryParse<ViewMode>(s.DefaultLibraryView, out var vmode)) { ViewModel.ViewMode = vmode; ViewBar.SelectedItem = ViewBar.Items[(int)vmode]; }
+        }
+        if (s.ArtFit != _lastArtFit) { _lastArtFit = s.ArtFit; _ = ViewModel.ReloadAsync(); }   // cards re-render with the new scaling
+        ApplyBackgroundStretch();
+        Platform.RoundWindow(this, s.WindowRoundness);
         ThemeService.Apply(s, this, Root);
         DimOverlay.Opacity = Math.Clamp(s.BackgroundDimPercent / 100.0, 0, 0.9);
         UpdateSidebar();
@@ -235,7 +245,7 @@ public sealed partial class MainWindow : Window
             {
                 try
                 {
-                    _floating = new FloatingIconWindow(s, (x, y) => { s.FloatingX = x; s.FloatingY = y; _h.Settings.Save(); });
+                    _floating = new FloatingIcon(s, (x, y) => { s.FloatingX = x; s.FloatingY = y; _h.Settings.Save(); });
                     _floating.Clicked += () => DispatcherQueue.TryEnqueue(() => { if (AppWindow.IsVisible && Platform.IsForeground(this)) HideMain(true); else ShowMain(true); });
                     _floating.ScanRequested += () => DispatcherQueue.TryEnqueue(() => _ = ViewModel.ScanNowAsync());
                     _floating.HideIconRequested += () => DispatcherQueue.TryEnqueue(() => { s.FloatingIconEnabled = false; _h.Settings.Save(); _settingsVm.Load(); ApplyShell(); });
@@ -250,8 +260,9 @@ public sealed partial class MainWindow : Window
             }
             if (_floating is not null)
             {
+                _floating.ApplySettings();
                 if (AppWindow.IsVisible && s.FloatingHideWhenOpen) _floating.HideIcon();
-                else if (!_floating.IsShown) { _floating.ShowIcon(); if (AppWindow.IsVisible) Activate(); }   // showing the icon activates it; give focus back
+                else if (!_floating.IsShown) _floating.ShowIcon();      // never activates, so it cannot steal focus from a game or stream
             }
         }
         else if (_floating is not null) { var f = _floating; _floating = null; f.Close(); }
@@ -404,6 +415,16 @@ public sealed partial class MainWindow : Window
         sb.Begin();
     }
 
+    private void ApplyBackgroundStretch()
+    {
+        var fit = _h.Settings.Current.ArtFit != "fill";
+        foreach (var img in new[] { BgA, BgB })
+        {
+            img.Stretch = fit ? Stretch.Uniform : Stretch.UniformToFill;           // fit = whole image, aspect ratio kept (tinted gradient fills the rest)
+            img.VerticalAlignment = fit ? VerticalAlignment.Top : VerticalAlignment.Center;
+        }
+    }
+
     private void UpdateArt()
     {
         var sel = ViewModel.Selected;
@@ -411,7 +432,7 @@ public sealed partial class MainWindow : Window
         if (sel is null || art is null)
         {
             BgArtHost.Visibility = Visibility.Collapsed; BgArt.Source = null;
-            ResetTint();
+            if (sel is not null && _h.Settings.Current.ArtFit != "fill") _ = ApplyTintAsync(sel); else ResetTint();
             return;
         }
         BgArt.Source = art;
@@ -439,7 +460,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Tints the window background with the artwork's dominant colour so icon/cover art sits in a matching scene.</summary>
     private async Task ApplyTintAsync(GameViewModel sel)
     {
-        var path = sel.Model.CoverPath ?? sel.Model.IconPath;
+        var path = sel.Model.BackgroundPath ?? sel.Model.CoverPath ?? sel.Model.IconPath;
         if (string.IsNullOrEmpty(path) || !File.Exists(path)) { ResetTint(); return; }
         if (!_tints.TryGetValue(path, out var c))
         {
@@ -447,7 +468,7 @@ public sealed partial class MainWindow : Window
             if (r is null) { ResetTint(); return; }
             c = r.Value; _tints[path] = c;
         }
-        if (!ReferenceEquals(ViewModel.Selected, sel) || sel.BackgroundImage is not null) return;   // selection changed while decoding
+        if (!ReferenceEquals(ViewModel.Selected, sel)) return;   // selection changed while decoding
         var bg = Windows.UI.Color.FromArgb(255, 0x0B, 0x0D, 0x12);
         var grad = new LinearGradientBrush { StartPoint = new Windows.Foundation.Point(0.1, 0), EndPoint = new Windows.Foundation.Point(0.9, 1) };
         grad.GradientStops.Add(new GradientStop { Color = Mix(c, bg, 0.50), Offset = 0 });

@@ -126,7 +126,35 @@ public sealed class SteamIntegration : PlatformIntegrationBase
             }
             list.Add(new DlcInfo(id, name, true)); // present as an installed depot in the manifest
         }
+        // Many DLC are installed as their own Steam app (own appmanifest) instead of a depot of the base game.
+        foreach (var id in await FetchStoreDlcIds(g.ExternalId, x.Http, ct))
+        {
+            if (list.Any(d => d.ExternalId == id)) continue;
+            var own = FindManifest(id);
+            if (own is not null && (own.StateFlags & 4) == 4) list.Add(new DlcInfo(id, own.Name, true));
+        }
         return new Result<IReadOnlyList<DlcInfo>>(list);
+    }
+
+    private static readonly ConcurrentDictionary<string, IReadOnlyList<string>> StoreDlcCache = new();
+
+    /// <summary>All DLC appids of a game according to the public Steam store API (no key needed).</summary>
+    private static async Task<IReadOnlyList<string>> FetchStoreDlcIds(string appId, HttpClient http, CancellationToken ct)
+    {
+        if (StoreDlcCache.TryGetValue(appId, out var cached)) return cached;
+        try
+        {
+            var json = await http.GetStringAsync($"https://store.steampowered.com/api/appdetails?appids={appId}&filters=basic", ct);
+            using var doc = JsonDocument.Parse(json);
+            var ids = new List<string>();
+            if (doc.RootElement.TryGetProperty(appId, out var e) && e.TryGetProperty("data", out var d) && d.ValueKind == JsonValueKind.Object &&
+                d.TryGetProperty("dlc", out var dlc) && dlc.ValueKind == JsonValueKind.Array)
+                foreach (var v in dlc.EnumerateArray()) ids.Add(v.ToString());
+            StoreDlcCache[appId] = ids;
+            return ids;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { return []; }
     }
 
     private static async Task<string?> FetchStoreName(string appId, HttpClient http, CancellationToken ct)

@@ -62,7 +62,7 @@ for midi, start, amp in ((38, 0.00, .50), (50, 0.10, .32), (57, 0.25, .30), (62,
     place(b, pad(note(midi), D - start, amp, 0.75, 1.2), start)
 for i, (midi, st) in enumerate(((81, .50), (86, .72), (90, .95), (93, 1.18), (98, 1.42), (93, 1.70))):
     place(b, bell(note(midi), 1.4, .22), st, pan=(-1) ** i * .7)
-save("startup.wav", finish(b, 0.55, 0.9))
+save("startup_aurora.wav", finish(b, 0.55, 0.9))
 
 # ---- open: soft rising two-note chime ----
 b = np.zeros((2, int(SR * 1.1)))
@@ -75,3 +75,54 @@ b = np.zeros((2, int(SR * 1.0)))
 place(b, bell(note(88), .7, .45), 0.00, .3); place(b, bell(note(81), .8, .40), 0.09, -.3)
 save("close.wav", finish(b, 0.32, 0.4))
 print("sounds written to", os.path.abspath(OUT))
+
+
+# ================= more startup sounds (selectable in Settings) =================
+def pluck(freq, d, amp):
+    x = t(d); s = np.sin(2 * np.pi * freq * x) + .35 * np.sin(2 * np.pi * 2 * freq * x) + .15 * np.sin(2 * np.pi * 3 * freq * x)
+    return amp * s * np.exp(-x * 5.5) * env(len(x), 0.003, 0.02)
+
+def bowl(freq, d, amp):
+    x = t(d); s = np.zeros_like(x)
+    for ratio, w, beat in ((1, 1.0, 0.0), (1.0, .8, 2.1), (2.76, .35, 0.0), (5.4, .12, 0.0)):
+        s += w * np.sin(2 * np.pi * (freq * ratio + beat) * x)
+    return amp * s * np.exp(-x * 1.1) * env(len(x), 0.02, 0.4)
+
+def square(freq, d, amp):
+    x = t(d); s = np.sign(np.sin(2 * np.pi * freq * x)) * .6 + np.sign(np.sin(2 * np.pi * freq * 2.003 * x)) * .25
+    return amp * s * env(len(x), 0.004, 0.06, 1.0)
+
+# crystal: cascading glass bells
+b = np.zeros((2, int(SR * 3.2)))
+for i, m in enumerate((93, 88, 84, 81, 76, 72, 69, 64)):
+    place(b, bell(note(m), 1.8, .30), i * .16, pan=(-1) ** i * .8)
+place(b, pad(note(57), 2.4, .06, .8, 1.2), 0.0)
+save("startup_crystal.wav", finish(b, 0.5, 1.0))
+
+# deep: cinematic sub swell + warm pad + one low bell
+b = np.zeros((2, int(SR * 3.6)))
+place(b, pad(note(26), 3.3, .75, 1.3, 1.5), 0.0); place(b, pad(note(38), 3.2, .45, 1.2, 1.5), 0.1)
+place(b, pad(note(50), 3.0, .30, 1.0, 1.4), 0.3); place(b, pad(note(57), 2.8, .22, 1.0, 1.4), 0.5)
+place(b, bell(note(62), 2.2, .35), 1.15, -.4); place(b, bell(note(69), 2.0, .25), 1.45, .4)
+save("startup_deep.wav", finish(b, 0.55, 1.3))
+
+# pulse: quick rising pluck arpeggio + shimmer
+b = np.zeros((2, int(SR * 2.4)))
+for i, m in enumerate((62, 66, 69, 74, 78, 81, 86)):
+    place(b, pluck(note(m), 1.0, .42), i * .11, pan=(-1) ** i * .5)
+place(b, pad(note(50), 1.8, .12, .3, 1.0), 0.0); place(b, bell(note(93), 1.4, .22), .8)
+save("startup_pulse.wav", finish(b, 0.5, 0.8))
+
+# retro: chiptune jingle
+b = np.zeros((2, int(SR * 1.8)))
+for i, (m, dur) in enumerate(((72, .14), (76, .14), (79, .14), (84, .5))):
+    place(b, square(note(m), dur + .08, .18), i * .14)
+place(b, square(note(60), .9, .10), 0.0)
+save("startup_retro.wav", finish(b, 0.42, 0.5))
+
+# zen: three singing-bowl strikes
+b = np.zeros((2, int(SR * 4.0)))
+for i, m in enumerate((57, 64, 69)):
+    place(b, bowl(note(m), 3.2, .5), i * .55, pan=(i - 1) * .5)
+save("startup_zen.wav", finish(b, 0.5, 1.5))
+print("startup variants written")

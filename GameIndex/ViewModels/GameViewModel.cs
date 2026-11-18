@@ -91,7 +91,7 @@ public sealed partial class GameViewModel : ObservableObject
             if (Model.AchUnlocked is int u && Model.AchTotal is int t && t > 0) return Loc.F("{0}% COMPLETED", (int)Math.Round(u * 100.0 / t));
             if (Model.IsManual) return Loc.T("Manual game");
             if (Model.PlatformId != PlatformIds.Steam) return Loc.F("Not exposed by {0}", Model.PlatformName);
-            return Loc.T(HasSteamKey ? "No data (private profile or no achievements)" : "Add a Steam Web API key in Settings");
+            return Loc.T("No data: set your Steam profile's Game details to Public");
         }
     }
     public double AchievementProgress => AchievementPercent;     // 0..100, or -1 when unavailable (progress bar hidden)

@@ -10,8 +10,8 @@
             </Grid.RenderTransform>
             <Border x:Name="CoverBorder" CornerRadius="18" BorderThickness="1" BorderBrush="{StaticResource BorderSoftBrush}" />
             <Border x:Name="CoverArt" CornerRadius="18" />
-            <Image x:Name="IconImg" Width="72" Height="72" Stretch="Uniform" VerticalAlignment="Center" Margin="0,-26,0,0" Visibility="Collapsed" />
-            <TextBlock x:Name="Monogram" FontSize="44" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-30,0,0"
+            <Image x:Name="IconImg" Width="100" Height="100" Stretch="Uniform" VerticalAlignment="Top" Margin="0,14,0,0" Visibility="Collapsed" />
+            <TextBlock x:Name="Monogram" FontSize="46" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,38,0,0"
                        Foreground="{StaticResource OnArtTextBrush}" Opacity="0.85" Visibility="Collapsed" />
             <TextBlock x:Name="FallbackTitle" TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Bottom" Margin="8,0,8,12"
                        MaxLines="3" TextTrimming="CharacterEllipsis" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource OnArtTextBrush}" />

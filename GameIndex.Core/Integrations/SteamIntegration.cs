@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Xml.Linq;
 using Microsoft.Win32;
 
 namespace GameIndex.Core.Integrations;
@@ -13,8 +14,9 @@ public sealed class SteamIntegration : PlatformIntegrationBase
     public override PlatformCapabilities Capabilities => PlatformCapabilities.Discovery | PlatformCapabilities.Launch | PlatformCapabilities.InstalledDlc |
         PlatformCapabilities.Achievements | PlatformCapabilities.Playtime | PlatformCapabilities.LastPlayed | PlatformCapabilities.Artwork;
     public override string Limitations =>
-        "Achievements need a Steam Web API key and a PUBLIC profile (Game details public). Playtime uses the Web API when a key is set, otherwise Steam's local " +
-        "localconfig.vdf if it contains it. DLC: only installed DLC depots recorded in the app manifest are counted; owned-but-not-installed DLC is not available.";
+        "No API key needed: playtime and achievements come from your public Steam Community profile (Steam > Profile > Edit > Privacy: Game details = Public). " +
+        "An optional Steam Web API key gives exact minutes. If the profile is private, GameIndex falls back to Steam's local files, which can lag behind. " +
+        "DLC: DLC depots in the app manifest plus DLC installed as their own Steam app; DLC merged into the base game's files cannot be told apart.";
 
     private const long SteamId64Base = 76561197960265728;
     private static readonly ConcurrentDictionary<string, string> DlcNameCache = new();
@@ -184,25 +186,71 @@ public sealed class SteamIntegration : PlatformIntegrationBase
         catch { return null; }
     }
 
+    private sealed class PrivateProfileException : Exception { public PrivateProfileException() : base("Steam profile is private") { } }
+    private static DateTime _privateUntil = DateTime.MinValue;          // profile found private: do not hammer the community endpoints for a while
+    private (DateTime At, string SteamId, Dictionary<long, double> Hours)? _community;
+
+    private static string? SteamIdFor(IntegrationContext x, string steamPath) => !string.IsNullOrWhiteSpace(x.SteamId64) ? x.SteamId64 : MostRecentSteamId64(steamPath);
+
+    /// <summary>Hours on record per appid from the public profile XML (no API key). Throws PrivateProfileException for private profiles.</summary>
+    private async Task<Dictionary<long, double>> GetCommunityHoursAsync(HttpClient http, string steamId, CancellationToken ct)
+    {
+        if (_community is { } c && c.SteamId == steamId && DateTime.UtcNow - c.At < TimeSpan.FromMinutes(5)) return c.Hours;
+        var xml = await http.GetStringAsync($"https://steamcommunity.com/profiles/{steamId}/games?tab=all&xml=1", ct);
+        var map = ParseCommunityGames(xml);
+        _community = (DateTime.UtcNow, steamId, map);
+        return map;
+    }
+
+    public static Dictionary<long, double> ParseCommunityGames(string xml)
+    {
+        var doc = XDocument.Parse(xml);
+        var err = doc.Root?.Element("error")?.Value;
+        if (err is not null) { if (err.Contains("private", StringComparison.OrdinalIgnoreCase)) throw new PrivateProfileException(); throw new InvalidOperationException(err); }
+        var map = new Dictionary<long, double>();
+        foreach (var g in doc.Descendants("game"))
+        {
+            if (!long.TryParse((string?)g.Element("appID"), out var id)) continue;
+            var h = ((string?)g.Element("hoursOnRecord"))?.Replace(",", "");
+            map[id] = double.TryParse(h, NumberStyles.Float, CultureInfo.InvariantCulture, out var hours) ? hours : 0;
+        }
+        return map;
+    }
+
     public override async Task<Result<ImportedStats>> ImportStatsAsync(Game g, IntegrationContext x, CancellationToken ct)
     {
         var steam = FindSteamPath();
         if (steam is null) return Result<ImportedStats>.Fail("Steam is not installed.");
-        var steamId = !string.IsNullOrWhiteSpace(x.SteamId64) ? x.SteamId64 : MostRecentSteamId64(steam);
+        var steamId = SteamIdFor(x, steam);
+        long? server = null; DateTime? last = null;
 
+        // 1) Steam Web API: exact minutes, only when the user supplied a key
         if (!string.IsNullOrEmpty(x.SteamApiKey) && !string.IsNullOrEmpty(steamId) && long.TryParse(g.ExternalId, out var appId))
         {
             try
             {
                 var owned = await GetOwnedAsync(x, steamId, ct);
-                if (owned.TryGetValue(appId, out var o))
-                    return new Result<ImportedStats>(new ImportedStats(o.Minutes * 60, o.LastPlayed > 0 ? Format.FromUnix(o.LastPlayed) : null));
+                if (owned.TryGetValue(appId, out var o)) { server = o.Minutes * 60; if (o.LastPlayed > 0) last = Format.FromUnix(o.LastPlayed); }
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex) { Log.Warn("Steam GetOwnedGames failed: " + ex.GetType().Name); }
         }
 
-        // Fallback: local config (no key needed). Not every Steam version stores Playtime there.
+        // 2) Public community profile (no key): the same server-side number Steam itself shows
+        if (server is null && !string.IsNullOrEmpty(steamId) && long.TryParse(g.ExternalId, out var aid) && DateTime.UtcNow >= _privateUntil)
+        {
+            try
+            {
+                var hours = await GetCommunityHoursAsync(x.Http, steamId, ct);
+                if (hours.TryGetValue(aid, out var h)) server = (long)Math.Round(h * 3600);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (PrivateProfileException) { _privateUntil = DateTime.UtcNow.AddMinutes(30); }
+            catch (Exception ex) { Log.Warn("Steam community playtime failed: " + ex.Message); }
+        }
+
+        // 3) Steam's local config (can lag behind the server)
+        long? local = null; DateTime? localLast = null;
         try
         {
             if (!string.IsNullOrEmpty(steamId) && long.TryParse(steamId, out var id64))
@@ -211,15 +259,18 @@ public sealed class SteamIntegration : PlatformIntegrationBase
                 if (File.Exists(cfg))
                 {
                     var app = VdfParser.Parse(File.ReadAllText(cfg))["UserLocalConfigStore"]?["Software"]?["Valve"]?["Steam"]?["apps"]?[g.ExternalId];
-                    var minutes = app?.GetLong("Playtime");
-                    var last = app?.GetLong("LastPlayed");
-                    if (minutes is not null || last is not null)
-                        return new Result<ImportedStats>(new ImportedStats(minutes * 60, last is > 0 ? Format.FromUnix(last.Value) : null));
+                    local = app?.GetLong("Playtime") * 60;
+                    if (app?.GetLong("LastPlayed") is > 0 and var lp) localLast = Format.FromUnix(lp);
                 }
             }
         }
         catch (Exception ex) { Log.Warn("Steam localconfig read failed: " + ex.Message); }
-        return Result<ImportedStats>.Fail("Steam has no local playtime for this game. Add a Steam Web API key in Settings to import it.");
+
+        long? best = server is null ? local : local is null ? server : Math.Max(server.Value, local.Value);   // never show less than any source says
+        var lastBest = last ?? localLast;
+        if (best is null && lastBest is null)
+            return Result<ImportedStats>.Fail("No Steam playtime found. Set your Steam profile's Game details to Public (no API key needed).");
+        return new Result<ImportedStats>(new ImportedStats(best, lastBest));
     }
 
     private async Task<Dictionary<long, (long Minutes, long LastPlayed)>> GetOwnedAsync(IntegrationContext x, string steamId, CancellationToken ct)
@@ -239,10 +290,55 @@ public sealed class SteamIntegration : PlatformIntegrationBase
     // ---------- achievements ----------
     public override async Task<Result<AchievementData>> GetAchievementsAsync(Game g, IntegrationContext x, CancellationToken ct)
     {
-        if (string.IsNullOrEmpty(x.SteamApiKey)) return Result<AchievementData>.Fail("Add a Steam Web API key in Settings to load achievements.");
         var steam = FindSteamPath();
-        var steamId = !string.IsNullOrWhiteSpace(x.SteamId64) ? x.SteamId64 : (steam is null ? null : MostRecentSteamId64(steam));
-        if (string.IsNullOrEmpty(steamId)) return Result<AchievementData>.Fail("SteamID64 unknown. Enter it in Settings.");
+        var steamId = steam is null ? x.SteamId64 : SteamIdFor(x, steam);
+        if (string.IsNullOrEmpty(steamId)) return Result<AchievementData>.Fail("SteamID64 unknown. Sign in to Steam once, or enter it in Settings.");
+
+        Result<AchievementData>? apiResult = null;
+        if (!string.IsNullOrEmpty(x.SteamApiKey))
+        {
+            apiResult = await ApiAchievementsAsync(g, x, steamId, ct);
+            if (apiResult.Ok) return apiResult;
+        }
+        if (DateTime.UtcNow < _privateUntil) return Result<AchievementData>.Fail("Your Steam profile is private. Set Game details to Public (no API key needed).");
+        var community = await CommunityAchievementsAsync(g, x, steamId, ct);
+        return community.Ok ? community : (apiResult ?? community);
+    }
+
+    public static Result<AchievementData> ParseCommunityAchievements(string xml)
+    {
+        var doc = XDocument.Parse(xml);
+        var err = doc.Root?.Element("error")?.Value;
+        if (err is not null) return Result<AchievementData>.Fail("Steam: " + err);
+        var privacy = doc.Root?.Element("privacyState")?.Value;
+        if (privacy is not null && !privacy.Equals("public", StringComparison.OrdinalIgnoreCase))
+            return Result<AchievementData>.Fail("Your Steam profile's stats are not public. Set Game details to Public (no API key needed).");
+        var items = doc.Descendants("achievement").Select(a =>
+        {
+            var api = (string?)a.Element("apiname");
+            var name = (string?)a.Element("name") ?? api ?? "?";
+            var unlocked = (string?)a.Attribute("closed") == "1";
+            DateTime? when = long.TryParse((string?)a.Element("unlockTimestamp"), out var ts) && ts > 0 ? Format.FromUnix(ts) : null;
+            return new AchievementRecord(api ?? name, name, (string?)a.Element("description"), (string?)a.Element("iconClosed"), (string?)a.Element("iconOpen"), unlocked, unlocked ? when : null);
+        }).ToList();
+        return items.Count == 0 ? Result<AchievementData>.Fail("This game has no Steam achievements (or its stats are not public).") : new Result<AchievementData>(new AchievementData(items));
+    }
+
+    private async Task<Result<AchievementData>> CommunityAchievementsAsync(Game g, IntegrationContext x, string steamId, CancellationToken ct)
+    {
+        try
+        {
+            var xml = await x.Http.GetStringAsync($"https://steamcommunity.com/profiles/{steamId}/stats/{g.ExternalId}/?xml=1", ct);
+            var r = ParseCommunityAchievements(xml);
+            if (!r.Ok && r.Reason?.Contains("not public", StringComparison.OrdinalIgnoreCase) == true) _privateUntil = DateTime.UtcNow.AddMinutes(30);
+            return r;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) { Log.Warn("Steam community achievements failed: " + ex.GetType().Name); return Result<AchievementData>.Fail("Could not read Steam achievements from your public profile."); }
+    }
+
+    private async Task<Result<AchievementData>> ApiAchievementsAsync(Game g, IntegrationContext x, string steamId, CancellationToken ct)
+    {
         try
         {
             // 1) schema: names, descriptions, icons, total count
@@ -259,7 +355,7 @@ public sealed class SteamIntegration : PlatformIntegrationBase
             // 2) the player's unlocked state
             var resp = await x.Http.GetAsync($"https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v1/?key={x.SteamApiKey}&steamid={steamId}&appid={g.ExternalId}&l=english", ct);
             var body = await resp.Content.ReadAsStringAsync(ct);
-            if (!resp.IsSuccessStatusCode && resp.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            if (resp.StatusCode == System.Net.HttpStatusCode.Forbidden)
                 return Result<AchievementData>.Fail("Steam refused access: set your Steam profile's Game details to Public.");
             using var player = JsonDocument.Parse(body);
             if (!player.RootElement.TryGetProperty("playerstats", out var ps)) return Result<AchievementData>.Fail("Steam returned no achievement data.");

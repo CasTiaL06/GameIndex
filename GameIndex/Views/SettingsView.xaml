@@ -37,8 +37,13 @@
                     <ComboBox Header="Window material (system blur)" SelectedIndex="{x:Bind Vm.BackdropIndex, Mode=TwoWay}" Width="260">
                         <ComboBoxItem Content="Mica" /><ComboBoxItem Content="Mica Alt" /><ComboBoxItem Content="Acrylic (real blur-behind)" /><ComboBoxItem Content="None (solid)" />
                     </ComboBox>
-                    <Slider Header="Window corner roundness (0 = square)" Minimum="0" Maximum="48" Value="{x:Bind Vm.WindowRoundness, Mode=TwoWay}" Width="420" HorizontalAlignment="Left" />
-                    <TextBlock Text="Up to about 9 uses Windows' smooth rounding; larger values clip the window with a rounded shape (the edge is slightly less smooth)." FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" />
+                    <TextBlock Text="Mica: soft, tinted by your wallpaper. Mica Alt: slightly stronger tint. Acrylic: blurred, see-through glass. None: solid colour. The material is only visible through the artwork layer, so use the slider below to let it show." FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" />
+                    <Slider Header="Material visibility (how much of the window material shows through)" Minimum="0" Maximum="80" Value="{x:Bind Vm.MaterialVisibility, Mode=TwoWay}" Width="420" HorizontalAlignment="Left" />
+                    <ToggleSwitch Header="Startup animation" IsOn="{x:Bind Vm.IntroAnimation, Mode=TwoWay}" />
+                    <ComboBox Header="Window corners" SelectedIndex="{x:Bind Vm.RoundnessIndex, Mode=TwoWay}" Width="460">
+                        <ComboBoxItem Content="Square" /><ComboBoxItem Content="Slightly rounded" /><ComboBoxItem Content="Rounded (Windows 11 style)" />
+                    </ComboBox>
+                    <TextBlock Text="Window corners use Windows 11's own smooth rounding; Windows 10 cannot round windows." FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" />
                     <ComboBox Header="Artwork scaling" SelectedIndex="{x:Bind Vm.ArtFitIndex, Mode=TwoWay}" Width="460">
                         <ComboBoxItem Content="Fit: show the whole image, keep its aspect ratio" />
                         <ComboBoxItem Content="Fill: crop the image to fill the space" />
@@ -55,6 +60,7 @@
 
                     <TextBlock Text="DESKTOP &amp; SHORTCUTS" FontSize="12" CharacterSpacing="150" Foreground="{StaticResource AccentBrush}" Margin="0,18,0,0" />
                     <ToggleSwitch Header="Global hotkey: show / hide GameIndex from anywhere" IsOn="{x:Bind Vm.HotkeyEnabled, Mode=TwoWay}" />
+                    <TextBlock Text="How it works: press the hotkey anywhere, even inside a game. The first press brings GameIndex to the front, pressing it again while GameIndex is in front hides it to the tray. It cannot appear over exclusive-fullscreen games, and it needs a combination no other program uses." FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" />
                     <ComboBox Header="Hotkey" SelectedIndex="{x:Bind Vm.HotkeyIndex, Mode=TwoWay}" Width="260">
                         <ComboBoxItem Content="Alt + G" /><ComboBoxItem Content="Ctrl + Alt + G" /><ComboBoxItem Content="Ctrl + Shift + G" /><ComboBoxItem Content="F9" />
                     </ComboBox>
@@ -111,7 +117,7 @@
                     <Button Content="Add folder…" Click="AddScanDir_Click" />
 
                     <TextBlock Text="STEAM (achievements &amp; playtime)" FontSize="12" CharacterSpacing="150" Foreground="{StaticResource AccentBrush}" Margin="0,18,0,0" />
-                    <TextBlock Text="Create a key at steamcommunity.com/dev/apikey. Your Steam profile's Game details must be Public. The key is stored encrypted with Windows DPAPI (tied to this Windows user) and is never written to the repository or logs. Passwords are never requested or stored." FontSize="12" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" />
+                    <TextBlock Text="No key is needed: playtime and achievements are read from your public Steam profile (Game details = Public). A key is optional (exact minutes). Create one at steamcommunity.com/dev/apikey. Your Steam profile's Game details must be Public. The key is stored encrypted with Windows DPAPI (tied to this Windows user) and is never written to the repository or logs. Passwords are never requested or stored." FontSize="12" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" />
                     <TextBox Header="SteamID64 (optional, auto-detected from the local Steam install)" Text="{x:Bind Vm.SteamId, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Width="420" HorizontalAlignment="Left" />
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <PasswordBox x:Name="SteamKeyBox" Header="Steam Web API key" Width="420" />

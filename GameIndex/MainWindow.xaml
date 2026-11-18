@@ -4,7 +4,8 @@
         xmlns:vm="using:GameIndex.ViewModels"
         xmlns:views="using:GameIndex.Views"
         Title="GameIndex">
-    <Grid x:Name="Root" AllowDrop="True" DragOver="Root_DragOver" Drop="Root_Drop" PreviewKeyDown="Root_PreviewKeyDown">
+    <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5" AllowDrop="True" DragOver="Root_DragOver" Drop="Root_Drop" PreviewKeyDown="Root_PreviewKeyDown">
+        <Grid.RenderTransform><CompositeTransform x:Name="RootXf" /></Grid.RenderTransform>
 
         <!-- ===== Dynamic background: fallback gradient, two cross-fading artwork layers, readability overlays ===== -->
         <Grid x:Name="BackgroundHost" IsHitTestVisible="False">
@@ -20,7 +21,7 @@
             <Image x:Name="BgA" Stretch="UniformToFill" />
             <Image x:Name="BgB" Stretch="UniformToFill" Opacity="0" />
             <!-- No wide background available: show the cover/icon completely (Uniform = fitted, never zoomed or cropped) -->
-            <Border x:Name="BgArtHost" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,60,120,140" Padding="34" CornerRadius="44"
+            <Border x:Name="BgArtHost" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,60,120,140" Padding="22" CornerRadius="40"
                     BorderThickness="1" BorderBrush="{StaticResource BorderSoftBrush}" Background="#22FFFFFF">
                 <Image x:Name="BgArt" Stretch="Uniform" />
             </Border>
@@ -286,6 +287,45 @@
                     </Grid>
                 </Grid>
             </Grid>
+        </Grid>
+
+        <!-- ===== Startup animation overlay ===== -->
+        <Grid x:Name="IntroOverlay" Visibility="Collapsed" Canvas.ZIndex="100" Tapped="Intro_Tapped">
+            <Grid.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#FF0B0D12" Offset="0" />
+                    <GradientStop Color="#FF171B33" Offset="0.6" />
+                    <GradientStop Color="#FF241F47" Offset="1" />
+                </LinearGradientBrush>
+            </Grid.Background>
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="30">
+                <Grid x:Name="IntroOrb" Width="200" Height="200" Opacity="0" RenderTransformOrigin="0.5,0.5" HorizontalAlignment="Center">
+                    <Grid.RenderTransform><CompositeTransform x:Name="IntroOrbXf" ScaleX="0.5" ScaleY="0.5" /></Grid.RenderTransform>
+                    <Ellipse x:Name="IntroGlow" Width="200" Height="200" Stroke="{StaticResource Accent2Brush}" StrokeThickness="1" Opacity="0.5" />
+                    <Ellipse Width="196" Height="196" Stroke="{StaticResource AccentBrush}" StrokeThickness="3" StrokeDashArray="6 4" RenderTransformOrigin="0.5,0.5">
+                        <Ellipse.RenderTransform><RotateTransform x:Name="IntroRing1Xf" /></Ellipse.RenderTransform>
+                    </Ellipse>
+                    <Ellipse Width="156" Height="156" Stroke="{StaticResource Accent2Brush}" StrokeThickness="2" StrokeDashArray="2 5" RenderTransformOrigin="0.5,0.5">
+                        <Ellipse.RenderTransform><RotateTransform x:Name="IntroRing2Xf" /></Ellipse.RenderTransform>
+                    </Ellipse>
+                    <Ellipse Width="116" Height="116">
+                        <Ellipse.Fill>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#FF2C3452" Offset="0" /><GradientStop Color="#FF11151D" Offset="1" />
+                            </LinearGradientBrush>
+                        </Ellipse.Fill>
+                    </Ellipse>
+                    <FontIcon Glyph="&#xE7FC;" FontSize="56" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Grid>
+                <StackPanel Spacing="10" HorizontalAlignment="Center">
+                    <TextBlock x:Name="IntroTitle" Text="GAMEINDEX" FontFamily="Segoe UI Variable Display" FontSize="44" FontWeight="SemiBold" CharacterSpacing="700" Opacity="0"
+                               HorizontalAlignment="Center" Foreground="{StaticResource OnArtTextBrush}">
+                        <TextBlock.RenderTransform><CompositeTransform x:Name="IntroTitleXf" TranslateY="14" /></TextBlock.RenderTransform>
+                    </TextBlock>
+                    <TextBlock x:Name="IntroSub" Text="YOUR GAMES · ONE PLACE" FontSize="12" CharacterSpacing="300" Opacity="0" HorizontalAlignment="Center" Foreground="{StaticResource OnArtSecondaryBrush}" />
+                </StackPanel>
+                <Rectangle x:Name="IntroBar" Height="3" Width="0" RadiusX="1.5" RadiusY="1.5" Fill="{StaticResource AccentBrush}" HorizontalAlignment="Center" />
+            </StackPanel>
         </Grid>
     </Grid>
 </Window>

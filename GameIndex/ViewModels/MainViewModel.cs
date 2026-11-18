@@ -89,10 +89,18 @@ public sealed partial class MainViewModel : ObservableObject
         host.Tracker.RunningChanged += (id, running) => _dq.TryEnqueue(() =>
         {
             if (_vms.TryGetValue(id, out var v)) { v.IsRunning = running; v.OnPropertyChangedPublic(); }
-            if (!running) _ = ReloadGameAsync(id);       // session ended: refresh playtime / last played
+            if (!running) { _ = ReloadGameAsync(id); _ = RefreshSteamStatsLaterAsync(id); }       // session ended: refresh playtime / last played
         });
         host.Discovery.LibraryChanged += () => _dq.TryEnqueue(async () => { await ReloadAsync(); host.Tracker.InvalidateWatchList(); _ = host.Info.RefreshStaleAsync(); });
         host.Info.GameUpdated += id => _dq.TryEnqueue(() => _ = ReloadGameAsync(id));
+    }
+
+    /// <summary>Right after a Steam game closes, Steam needs a moment to sync the session; then import the new server total.</summary>
+    private async Task RefreshSteamStatsLaterAsync(long id)
+    {
+        if (!_vms.TryGetValue(id, out var v) || v.Model.PlatformId != PlatformIds.Steam) return;
+        await Task.Delay(TimeSpan.FromSeconds(20));
+        await _h.Info.RefreshGameAsync(id, RefreshKind.Stats);
     }
 
     // ---------- loading ----------

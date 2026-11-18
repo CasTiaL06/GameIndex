@@ -178,3 +178,15 @@ Steam: DLC depots in the app manifest **plus** DLC that are installed as their o
 GOG: registry `dependsOn` **plus** `goggame-*.info` files in the game folder. Epic: add-on manifests.
 Other platforms / when the platform reports none: an **estimate** from `DLC`, `Addons`, `Expansions` folders inside the game directory
 (shown as "Estimated from the game's DLC folders"). Anything that is merged into the base game's own files cannot be told apart.
+
+## Round 6 changes
+* **Open / close animation** no longer resizes the window (that caused the lag and the stray small frame). The window is placed at full size while hidden,
+  then fades in (layered-window alpha) while the content eases in from slightly smaller/lower; closing reverses it in 0.2 s.
+* **Window corners**: Square / Slightly rounded / Rounded, using only Windows 11's DWM rounding. The old clip-region approach caused white corners and was removed.
+* **Steam playtime** is now the server-side number: Web API (if a key is set) → public Steam Community profile XML (no key) → local `localconfig.vdf`;
+  the largest value wins. It refreshes on every GameIndex start, every 15 min, and ~20 s after a Steam game closes.
+  **Achievements** likewise work without an API key from the public profile (`Game details = Public`).
+* **Window material**: Mica / Mica Alt / Acrylic / None were hidden behind an opaque artwork layer. *Material visibility* lets it show through.
+* **Startup animation** (toggle in Settings; click to skip) plays together with the startup sound.
+* **12 desktop icon styles**. Icons in cards/tiles are enlarged to fill their space with the aspect ratio kept and tinted with the icon's own colour.
+* **Global hotkey** explanation added next to the setting.

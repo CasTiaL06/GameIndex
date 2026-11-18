@@ -60,8 +60,11 @@ public static class Platform
     public static bool IsForeground(Microsoft.UI.Xaml.Window w) => GetForegroundWindow() == Hwnd(w);
 
     /// <summary>Saturation-weighted average colour of an image (16x16 sample) – used to tint the background around icon/cover art.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Windows.UI.Color> TintCache = new();
+
     public static async Task<Windows.UI.Color?> AverageColorAsync(string path)
     {
+        if (TintCache.TryGetValue(path, out var cached)) return cached;
         try
         {
             var file = await StorageFile.GetFileFromPathAsync(path);
@@ -82,7 +85,10 @@ public static class Platform
                 var w = a * (0.15 + sat);
                 r += R * w; g += G * w; b += B * w; sum += w;
             }
-            return sum <= 0 ? null : Windows.UI.Color.FromArgb(255, (byte)(r / sum), (byte)(g / sum), (byte)(b / sum));
+            if (sum <= 0) return null;
+            var result = Windows.UI.Color.FromArgb(255, (byte)(r / sum), (byte)(g / sum), (byte)(b / sum));
+            TintCache[path] = result;
+            return result;
         }
         catch { return null; }
     }
@@ -101,23 +107,38 @@ public static class Platform
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr h);
 
     /// <summary>
-    /// Corner radius in DIP (0 = square). Small radii on Windows 11 use DWM's smooth rounding; larger radii (and every radius on Windows 10)
-    /// clip the window with a rounded region, whose edge is not anti-aliased. Maximized windows are always square.
+    /// Window corners: 0 = square, 1 = slightly rounded, 2 = rounded (Windows 11 default). Uses only DWM's own anti-aliased rounding;
+    /// clipping the window with a region caused white corner artifacts, so no region is ever applied (any old one is cleared).
+    /// Windows 10 cannot round windows at all.
     /// </summary>
-    public static void RoundWindow(Microsoft.UI.Xaml.Window w, int radiusDip = 12)
+    public static void RoundWindow(Microsoft.UI.Xaml.Window w, int level = 2)
     {
         try
         {
             var h = Hwnd(w);
-            var maximized = w.AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter { State: Microsoft.UI.Windowing.OverlappedPresenterState.Maximized };
-            if (IsWindows11) { var pref = radiusDip <= 0 ? 1 /* DONOTROUND */ : 2 /* ROUND */; DwmSetWindowAttribute(h, 33 /* DWMWA_WINDOW_CORNER_PREFERENCE */, ref pref, sizeof(int)); }
-            var needRegion = !maximized && radiusDip > 0 && (!IsWindows11 || radiusDip > 9);
-            if (!needRegion) { SetWindowRgn(h, IntPtr.Zero, true); return; }
-            var r = (int)Math.Round(radiusDip * Math.Max(1.0, GetDpiForWindow(h) / 96.0));
-            var s = w.AppWindow.Size;
-            SetWindowRgn(h, CreateRoundRectRgn(0, 0, s.Width + 1, s.Height + 1, r * 2, r * 2), true);
+            SetWindowRgn(h, IntPtr.Zero, true);
+            if (!IsWindows11) return;
+            var pref = level <= 0 ? 1 /* DWMWCP_DONOTROUND */ : level == 1 ? 3 /* DWMWCP_ROUNDSMALL */ : 2 /* DWMWCP_ROUND */;
+            DwmSetWindowAttribute(h, 33 /* DWMWA_WINDOW_CORNER_PREFERENCE */, ref pref, sizeof(int));
         }
         catch { /* purely cosmetic */ }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern IntPtr GetWindowLongPtr(IntPtr h, int index);
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] private static extern IntPtr SetWindowLongPtr(IntPtr h, int index, IntPtr value);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool SetLayeredWindowAttributes(IntPtr h, uint colorKey, byte alpha, uint flags);
+
+    /// <summary>Whole-window opacity (0-255) for the open/close fade; avoids resizing the window while animating.</summary>
+    public static void SetWindowAlpha(Microsoft.UI.Xaml.Window w, byte alpha)
+    {
+        try
+        {
+            var h = Hwnd(w);
+            var ex = GetWindowLongPtr(h, -20 /* GWL_EXSTYLE */).ToInt64();
+            if ((ex & 0x80000) == 0) SetWindowLongPtr(h, -20, (IntPtr)(ex | 0x80000 /* WS_EX_LAYERED */));
+            SetLayeredWindowAttributes(h, 0, alpha, 2 /* LWA_ALPHA */);
+        }
+        catch { }
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]

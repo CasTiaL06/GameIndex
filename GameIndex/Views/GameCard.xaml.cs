@@ -77,9 +77,24 @@ public sealed partial class GameCard : UserControl
         {
             CoverArt.Background = null;
             FallbackTitle.Text = g.Title; FallbackTitle.Visibility = Visibility.Visible;
+            _ = TintFromIconAsync(g);
             if (g.IconImage is { } icon) { IconImg.Source = icon; IconImg.Visibility = Visibility.Visible; Monogram.Visibility = Visibility.Collapsed; }
             else { IconImg.Visibility = Visibility.Collapsed; Monogram.Text = g.Monogram; Monogram.Visibility = Visibility.Visible; }
         }
+    }
+
+    /// <summary>Replaces the title-hash colour by the icon's own dominant colour so icon + card look like one piece.</summary>
+    private async Task TintFromIconAsync(GameViewModel g)
+    {
+        var path = g.Model.IconPath;
+        if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
+        var c = await GameIndex.Services.Platform.AverageColorAsync(path);
+        if (c is null || !ReferenceEquals(Game, g) || g.CoverImage is not null) return;          // recycled for another game meanwhile
+        var dark = Color.FromArgb(0xFF, 0x11, 0x15, 0x1D);
+        var grad = new LinearGradientBrush { StartPoint = new(0, 0), EndPoint = new(1, 1) };
+        grad.GradientStops.Add(new GradientStop { Color = Color.FromArgb(0xE0, (byte)(c.Value.R * .75), (byte)(c.Value.G * .75), (byte)(c.Value.B * .75)), Offset = 0 });
+        grad.GradientStops.Add(new GradientStop { Color = dark, Offset = 1 });
+        CoverBorder.Background = grad;
     }
 
     private static Color FromHue(int hue, double s, double v)

@@ -270,3 +270,36 @@ public class DlcDetectionTests
         finally { Directory.Delete(d, true); }
     }
 }
+
+
+public class SteamCommunityParserTests
+{
+    [Fact] public void CommunityGames_ParseHoursWithThousandsSeparator()
+    {
+        const string xml = "<gamesList><games><game><appID>730</appID><name>CS</name><hoursOnRecord>1,607.3</hoursOnRecord></game><game><appID>10</appID><name>X</name></game></games></gamesList>";
+        var map = SteamIntegration.ParseCommunityGames(xml);
+        Assert.Equal(1607.3, map[730], 3);
+        Assert.Equal(0, map[10]);
+    }
+
+    [Fact] public void CommunityGames_PrivateProfile_Throws() =>
+        Assert.ThrowsAny<Exception>(() => SteamIntegration.ParseCommunityGames("<gamesList><error><![CDATA[This profile is private.]]></error></gamesList>"));
+
+    [Fact] public void CommunityAchievements_ParseUnlockedAndLocked()
+    {
+        const string xml = "<playerstats><privacyState>public</privacyState><achievements>" +
+            "<achievement closed=\"1\"><iconClosed>c.jpg</iconClosed><iconOpen>o.jpg</iconOpen><name>First</name><apiname>ACH_1</apiname><description>d</description><unlockTimestamp>1700000000</unlockTimestamp></achievement>" +
+            "<achievement closed=\"0\"><iconClosed>c2.jpg</iconClosed><iconOpen>o2.jpg</iconOpen><name>Second</name><apiname>ACH_2</apiname></achievement></achievements></playerstats>";
+        var r = SteamIntegration.ParseCommunityAchievements(xml);
+        Assert.True(r.Ok);
+        Assert.Equal(2, r.Value!.Items.Count);
+        Assert.True(r.Value.Items[0].Unlocked); Assert.NotNull(r.Value.Items[0].UnlockedUtc);
+        Assert.False(r.Value.Items[1].Unlocked);
+    }
+
+    [Fact] public void CommunityAchievements_PrivateStats_IsUnavailableNotZero()
+    {
+        var r = SteamIntegration.ParseCommunityAchievements("<playerstats><privacyState>private</privacyState></playerstats>");
+        Assert.False(r.Ok);
+    }
+}

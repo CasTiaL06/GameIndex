@@ -31,8 +31,10 @@ public sealed class AppSettings
     public string FloatingStyle { get; set; } = "neon";     // neon | pulse | planet | crystal | minimal | gamepad
     public bool KeepRunningInBackground { get; set; } = true; // closing the window keeps tray + desktop icon + tracking alive
     public string StartupSound { get; set; } = "aurora";    // aurora | crystal | deep | pulse | retro | zen | off
+    public int MaterialVisibility { get; set; } = 25;       // 0-100: how much of the Mica/Acrylic backdrop shows through the artwork layer
+    public bool IntroAnimation { get; set; } = true;         // animated splash when GameIndex starts
     public string ArtFit { get; set; } = "fit";             // fit = whole image, aspect ratio kept | fill = crop to fill
-    public int WindowRoundness { get; set; } = 12;          // window corner radius in DIP (0 = square)
+    public int WindowRoundness { get; set; } = 2;           // 0 = square, 1 = slightly rounded, 2 = rounded (Windows 11 only)
     public bool FloatingHideWhenOpen { get; set; }          // hide the desktop icon while the main window is open  // draggable animated desktop icon
     public int FloatingX { get; set; } = int.MinValue;     // remembered position (int.MinValue = default corner)
     public int FloatingY { get; set; } = int.MinValue;

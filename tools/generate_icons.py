@@ -149,11 +149,96 @@ for i in range(3):
     a = math.radians(i * 120); x, y = S / 2 + R * 1.3 * math.cos(a), S / 2 + R * 1.3 * math.sin(a); rd.ellipse((x - S * .014, y - S * .014, x + S * .014, y + S * .014), fill=CYAN + (255,))
 save("gamepad_base.png", base); save("gamepad_ring.png", glow(ring, CYAN, S * .008, 1.0))
 
+
+def bolt(draw, cx, cy, w, color):
+    p = [(0.10, -0.50), (-0.30, 0.05), (-0.02, 0.05), (-0.14, 0.52), (0.32, -0.12), (0.04, -0.12), (0.22, -0.50)]
+    draw.polygon([(cx + x * w, cy + y * w) for x, y in p], fill=color)
+
+def star_pts(cx, cy, r1, r2, n=5, rot=-90):
+    pts = []
+    for i in range(n * 2):
+        a = math.radians(rot + i * 180 / n); r = r1 if i % 2 == 0 else r2
+        pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+    return pts
+
+def gradient_shape(poly_fn, c1, c2, angle=60):
+    m = Image.new("L", (S, S), 0); poly_fn(ImageDraw.Draw(m)); g = gradient(c1, c2, angle).convert("RGBA"); g.putalpha(m); return g
+
+# 7 ---- EMBER: hot orange orb with a bolt
+base = blank(); paste_masked(base, gradient((255, 190, 70), (225, 55, 60), 60), disc_mask(R)); base = gloss(base, R, 80)
+d = ImageDraw.Draw(base); bolt(d, S / 2 + S * .004, S / 2 + S * .004, R * 1.15, (0, 0, 0, 70)); bolt(d, S / 2, S / 2, R * 1.15, (255, 255, 255, 255))
+base = glow(base, (255, 150, 60), S * .035, 1.1)
+ring = glow(dashed_ring(int(R * 1.15), S * .010, (255, 200, 120), 40, 18, 230), (255, 150, 60), S * .01, .9)
+save("ember_base.png", base); save("ember_ring.png", ring)
+
+# 8 ---- AURORA: teal -> violet orb
+base = blank(); paste_masked(base, gradient((70, 255, 200), (110, 100, 255), 50), disc_mask(R)); base = gloss(base, R, 85)
+d = ImageDraw.Draw(base); controller(d, S / 2, S / 2 + S * .01, R * 1.1, (255, 255, 255, 255), (10, 50, 90, 100))
+base = glow(base, (90, 255, 210), S * .035, 1.0)
+ring = Image.alpha_composite(dashed_ring(int(R * 1.15), S * .009, (150, 255, 230), 30, 12, 230), dashed_ring(int(R * 0.88), S * .006, (200, 170, 255), 6, 24, 200))
+save("aurora_base.png", base); save("aurora_ring.png", glow(ring, (90, 255, 210), S * .01, .9))
+
+# 9 ---- SHIELD: crest with a controller
+def shield(dr, scale=1.0, inset=0):
+    k = R * 1.05 * scale - inset
+    dr.polygon([(S / 2 - k * .88, S / 2 - k * .78), (S / 2, S / 2 - k * 1.02), (S / 2 + k * .88, S / 2 - k * .78), (S / 2 + k * .86, S / 2 + k * .12),
+                (S / 2 + k * .5, S / 2 + k * .66), (S / 2, S / 2 + k * 1.02), (S / 2 - k * .5, S / 2 + k * .66), (S / 2 - k * .86, S / 2 + k * .12)], fill=255)
+outer = Image.new("L", (S, S), 0); shield(ImageDraw.Draw(outer)); inner = Image.new("L", (S, S), 0); shield(ImageDraw.Draw(inner), 1.0, S * .018)
+base = blank(); base.paste(gradient(CYAN, VIOLET, 70).convert("RGBA"), (0, 0), outer)
+dark = gradient((34, 42, 66), (14, 18, 28), 70).convert("RGBA"); base.paste(dark, (0, 0), inner)
+d = ImageDraw.Draw(base); controller(d, S / 2, S / 2 + S * .01, R * 1.0, WHITE + (255,), (0, 0, 0, 90))
+base = glow(base, CYAN, S * .03, 1.0)
+ring = Image.alpha_composite(dashed_ring(int(R * 1.28), S * .007, CYAN, 20, 30, 220), dashed_ring(int(R * 1.28), S * .004, VIOLET, 6, 44, 200, rot=20))
+save("shield_base.png", base); save("shield_ring.png", glow(ring, CYAN, S * .01, .8))
+
+# 10 ---- STAR: golden star
+base = gradient_shape(lambda dr: dr.polygon(star_pts(S / 2, S / 2 + S * .01, R * 1.12, R * .47), fill=255), (255, 236, 130), (255, 150, 40), 70)
+hi = blank(); ImageDraw.Draw(hi).polygon(star_pts(S / 2, S / 2 + S * .01, R * 1.12, R * .47), outline=(255, 255, 255, 220), width=int(S * .006)); base = Image.alpha_composite(base, hi)
+base = glow(base, (255, 200, 80), S * .035, 1.1)
+ring = blank(); rd = ImageDraw.Draw(ring)
+for i in range(8):
+    a = math.radians(i * 45 + 10); x, y = S / 2 + R * 1.3 * math.cos(a), S / 2 + R * 1.3 * math.sin(a); k = S * (.02 if i % 2 else .012)
+    rd.polygon([(x, y - k), (x + k * .3, y - k * .3), (x + k, y), (x + k * .3, y + k * .3), (x, y + k), (x - k * .3, y + k * .3), (x - k, y), (x - k * .3, y - k * .3)], fill=(255, 240, 190, 255))
+save("star_base.png", base); save("star_ring.png", glow(ring, (255, 200, 80), S * .01, 1.0))
+
+# 11 ---- JOYSTICK: arcade stick
+base = blank(); d = ImageDraw.Draw(base)
+d.rounded_rectangle((S / 2 - R * .95, S / 2 + R * .28, S / 2 + R * .95, S / 2 + R * .86), radius=R * .22, fill=(45, 52, 76, 255), outline=CYAN + (255,), width=int(S * .006))
+d.ellipse((S / 2 - R * .32, S / 2 + R * .12, S / 2 + R * .32, S / 2 + R * .46), fill=(25, 30, 46, 255))
+d.rectangle((S / 2 - R * .075, S / 2 - R * .52, S / 2 + R * .075, S / 2 + R * .3), fill=(190, 198, 215, 255))
+ball = gradient_shape(lambda dr: dr.ellipse((S / 2 - R * .4, S / 2 - R * 1.0, S / 2 + R * .4, S / 2 - R * .2), fill=255), (255, 120, 120), (200, 20, 60), 60)
+base = Image.alpha_composite(base, ball)
+d = ImageDraw.Draw(base)
+d.ellipse((S / 2 - R * .24, S / 2 - R * .88, S / 2 - R * .02, S / 2 - R * .66), fill=(255, 255, 255, 140))
+for i, c in enumerate(((255, 210, 70), (70, 200, 255), (120, 255, 150))):
+    x = S / 2 - R * .52 + i * R * .52; d.ellipse((x - R * .13, S / 2 + R * .5 - R * .13, x + R * .13, S / 2 + R * .5 + R * .13), fill=c + (255,))
+base = glow(base, (255, 90, 120), S * .028, .8)
+ring = dashed_ring(int(R * 1.2), S * .007, (255, 140, 160), 24, 36, 210)
+save("joystick_base.png", base); save("joystick_ring.png", glow(ring, (255, 90, 120), S * .008, .8))
+
+# 12 ---- ATOM: nucleus + three orbits (the rotating layer carries the bright orbits)
+def orbit_layer(alpha, width):
+    lay = blank()
+    for k, col in enumerate((CYAN, VIOLET, (120, 255, 220))):
+        o = blank(); ImageDraw.Draw(o).ellipse((S / 2 - R * 1.25, S / 2 - R * .46, S / 2 + R * 1.25, S / 2 + R * .46), outline=col + (alpha,), width=int(width))
+        lay = Image.alpha_composite(lay, o.rotate(k * 60, resample=Image.BICUBIC))
+    return lay
+base = orbit_layer(110, S * .004); bd = ImageDraw.Draw(base)
+nuc = gradient_shape(lambda dr: dr.ellipse((S / 2 - R * .3, S / 2 - R * .3, S / 2 + R * .3, S / 2 + R * .3), fill=255), (255, 255, 255), CYAN, 60)
+base = Image.alpha_composite(base, nuc); base = glow(base, CYAN, S * .03, 1.1)
+ring = orbit_layer(255, S * .008)
+for k in range(3):
+    a = math.radians(k * 60); x, y = R * 1.25 * math.cos(math.radians(40 + k * 120)), R * .46 * math.sin(math.radians(40 + k * 120))
+    px = S / 2 + x * math.cos(a) - y * math.sin(a); py = S / 2 + x * math.sin(a) + y * math.cos(a)
+    ImageDraw.Draw(ring).ellipse((px - S * .018, py - S * .018, px + S * .018, py + S * .018), fill=WHITE + (255,))
+save("atom_base.png", base); save("atom_ring.png", glow(ring, CYAN, S * .01, .9))
+
 # contact sheet for a quick visual check
-sheet = Image.new("RGBA", (6 * 256, 256), (22, 26, 38, 255))
-for i, n in enumerate(("neon", "pulse", "planet", "crystal", "minimal", "gamepad")):
+names = ("neon", "pulse", "planet", "crystal", "minimal", "gamepad", "ember", "aurora", "shield", "star", "joystick", "atom")
+sheet = Image.new("RGBA", (6 * 256, 2 * 256), (22, 26, 38, 255))
+for i, n in enumerate(names):
     for layer in ("base", "ring"):
         im = Image.open(os.path.join(OUT, f"{n}_{layer}.png")).resize((256, 256), Image.LANCZOS)
-        sheet.alpha_composite(im, (i * 256, 0))
+        sheet.alpha_composite(im, ((i % 6) * 256, (i // 6) * 256))
 sheet.convert("RGB").save("/tmp/icon_sheet.png")
 print("icons written to", os.path.abspath(OUT))

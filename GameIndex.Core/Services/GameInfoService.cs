@@ -67,9 +67,9 @@ public sealed class GameInfoService
     }
 
     /// <summary>Fills in whatever is missing or stale. Called after every library scan.</summary>
-    public Task RefreshStaleAsync(CancellationToken ct = default) => Task.Run(() => RefreshStaleCoreAsync(ct), ct);
+    public Task RefreshStaleAsync(bool forceStats = false, CancellationToken ct = default) => Task.Run(() => RefreshStaleCoreAsync(forceStats, ct), ct);
 
-    private async Task RefreshStaleCoreAsync(CancellationToken ct)
+    private async Task RefreshStaleCoreAsync(bool forceStats, CancellationToken ct)
     {
         if (!await _staleGate.WaitAsync(0, ct)) return;
         try
@@ -86,9 +86,9 @@ public sealed class GameInfoService
                 if (!artTried && ((g.CoverPath is null && g.IconPath is null) || (g.BackgroundPath is null && g.PlatformId == PlatformIds.Steam))) kinds |= RefreshKind.Artwork;
                 if (auto && !g.IsManual)
                 {
-                    if (DateTime.UtcNow - g.StatsUpdatedUtc > TimeSpan.FromHours(1) || g.StatsUpdatedUtc is null) kinds |= RefreshKind.Stats;
+                    if (g.StatsUpdatedUtc is null || (forceStats && g.PlatformId == PlatformIds.Steam) || DateTime.UtcNow - g.StatsUpdatedUtc > TimeSpan.FromMinutes(15)) kinds |= RefreshKind.Stats;   // playtime: on every start, then every 15 min
                     if (g.DlcUpdatedUtc is null || g.DlcSource is null || DateTime.UtcNow - g.DlcUpdatedUtc > TimeSpan.FromDays(1)) kinds |= RefreshKind.Dlc;   // DlcSource null = checked by an older version: re-check once
-                    if (g.PlatformId == PlatformIds.Steam && hasKey && (g.AchUpdatedUtc is null || DateTime.UtcNow - g.AchUpdatedUtc > TimeSpan.FromDays(1))) kinds |= RefreshKind.Achievements;
+                    if (g.PlatformId == PlatformIds.Steam && (g.AchUpdatedUtc is null || DateTime.UtcNow - g.AchUpdatedUtc > TimeSpan.FromDays(1))) kinds |= RefreshKind.Achievements;
                 }
                 if (kinds == RefreshKind.None) continue;
                 try { await RefreshGameCoreAsync(g.Id, kinds, ct); await Task.Delay(120, ct); } // gentle on web APIs

@@ -88,7 +88,6 @@ public sealed partial class MainWindow : Window
         AppWindow.Changed += (_, a) =>
         {
             if ((a.DidSizeChange || a.DidPositionChange) && !_animating) RememberNormal();
-            if (a.DidSizeChange) Platform.RoundWindow(this, _h.Settings.Current.WindowRoundness);
         };
         Closed += (_, _) => { _floating?.Close(); _hotkey.Dispose(); _pad.Dispose(); _tray.Dispose(); _h.Dispose(); };
 
@@ -106,7 +105,7 @@ public sealed partial class MainWindow : Window
         {
             ApplyAppearance();
             if (_startHidden) { AppWindow.Hide(); AppWindow.MoveAndResize(DefaultRect()); _startHidden = false; }
-            else SoundService.PlayStartup(_h.Settings.Current.StartupSound, _h.Settings.Current.SoundsEnabled);
+            else { PlayIntro(); SoundService.PlayStartup(_h.Settings.Current.StartupSound, _h.Settings.Current.SoundsEnabled); }
             ApplyShell();
             if (_h.Paths.Warning is not null) ViewModel.StatusText = _h.Paths.Warning;
             ViewBar.SelectedItem = ViewBar.Items[(int)ViewModel.ViewMode];
@@ -115,7 +114,7 @@ public sealed partial class MainWindow : Window
             _h.Artwork.ExeIconProvider = Platform.ExtractExeIconAsync;
             _h.Tracker.Start();
             _h.Discovery.StartBackground();
-            _ = _h.Info.RefreshStaleAsync();
+            _ = _h.Info.RefreshStaleAsync(forceStats: true);          // pull the real Steam playtime as soon as GameIndex opens
             CarouselScroller.Focus(FocusState.Programmatic);
         };
 
@@ -189,6 +188,7 @@ public sealed partial class MainWindow : Window
         if (s.ArtFit != _lastArtFit) { _lastArtFit = s.ArtFit; _ = ViewModel.ReloadAsync(); }   // cards re-render with the new scaling
         ApplyBackgroundStretch();
         Platform.RoundWindow(this, s.WindowRoundness);
+        BackgroundHost.Opacity = s.TransparencyEnabled && s.Backdrop != "None" ? 1 - Math.Clamp(s.MaterialVisibility, 0, 80) / 100.0 : 1.0;
         ThemeService.Apply(s, this, Root);
         DimOverlay.Opacity = Math.Clamp(s.BackgroundDimPercent / 100.0, 0, 0.9);
         UpdateSidebar();
@@ -269,12 +269,6 @@ public sealed partial class MainWindow : Window
         _tray.IconVisible = _floating?.IsShown == true;
     }
 
-    private static Windows.Graphics.RectInt32 Lerp(Windows.Graphics.RectInt32 a, Windows.Graphics.RectInt32 b, double e)
-    {
-        static int L(int x, int y, double t) => (int)Math.Round(x + (y - x) * t);
-        return new(L(a.X, b.X, e), L(a.Y, b.Y, e), L(a.Width, b.Width, e), L(a.Height, b.Height, e));
-    }
-
     private Windows.Graphics.RectInt32 DefaultRect()
     {
         var wa = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(AppWindow.Id, Microsoft.UI.Windowing.DisplayAreaFallback.Primary).WorkArea;
@@ -296,15 +290,6 @@ public sealed partial class MainWindow : Window
         return DefaultRect();
     }
 
-    private static Windows.Graphics.RectInt32 Around(Windows.Graphics.RectInt32 r, int w, int h) => new(r.X + r.Width / 2 - w / 2, r.Y + r.Height / 2 - h / 2, w, h);
-
-    /// <summary>Opening starts at the floating icon (or the screen centre) and grows to the window; closing shrinks back toward the icon.</summary>
-    private Windows.Graphics.RectInt32 AnchorRect(Windows.Graphics.RectInt32 target)
-    {
-        if (_floating is { IsShown: true } f) return Around(f.Bounds, 240, 170);
-        return Around(target, Math.Max(240, target.Width / 3), Math.Max(170, target.Height / 3));
-    }
-
     private void ToggleMain()
     {
         if (_animating) return;
@@ -321,20 +306,17 @@ public sealed partial class MainWindow : Window
         var s = _h.Settings.Current;
         SoundService.Play("open", s.SoundsEnabled);
         var maximized = presenter?.State == OverlappedPresenterState.Maximized;
-        var target = TargetRect();
-        if (!maximized && animate && s.AnimationsEnabled)
+        if (!maximized) AppWindow.MoveAndResize(TargetRect());                              // size/position are restored while the window is still hidden
+        if (animate && s.AnimationsEnabled)
         {
-            var from = AnchorRect(target);
-            AppWindow.MoveAndResize(from);
-            Root.Opacity = 0;
+            // The window never changes size while animating (that caused the lag and a stray small frame): it appears at full size, fully transparent,
+            // then fades in while the content eases in from slightly smaller / lower.
+            Platform.SetWindowAlpha(this, 0);
+            RootXf.ScaleX = RootXf.ScaleY = 0.95; RootXf.TranslateY = 22;
             AppWindow.Show(); Activate(); Platform.Foreground(this);
-            Animate(from, target, opening: true, done: null);
+            AnimateWindow(opening: true, done: null);
         }
-        else
-        {
-            if (!maximized) AppWindow.MoveAndResize(target);
-            AppWindow.Show(); Activate(); Platform.Foreground(this);
-        }
+        else { AppWindow.Show(); Activate(); Platform.Foreground(this); }
         if (s.FloatingHideWhenOpen) _floating?.HideIcon();
         _tray.IconVisible = _floating?.IsShown == true;
     }
@@ -343,29 +325,26 @@ public sealed partial class MainWindow : Window
     {
         if (_animating || !AppWindow.IsVisible) return;
         var s = _h.Settings.Current;
-        var maximized = AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Maximized };
         RememberNormal();
         SoundService.Play("close", s.SoundsEnabled);
-        if (s.FloatingIconEnabled) _floating?.ShowIcon();                                    // the window shrinks toward it
+        if (s.FloatingIconEnabled) _floating?.ShowIcon();
         _tray.IconVisible = _floating?.IsShown == true;
 
-        if (!maximized && animate && s.AnimationsEnabled && _normal.Width > 0)
-        {
-            var from = _normal;
-            Animate(from, AnchorRect(from), opening: false, done: () =>
+        var maximized = AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Maximized };
+        if (!maximized && animate && s.AnimationsEnabled)
+            AnimateWindow(opening: false, done: () =>
             {
                 AppWindow.Hide();
-                Root.Opacity = 1;
-                AppWindow.MoveAndResize(from);                                               // restore size so the next open starts correctly
+                Platform.SetWindowAlpha(this, 255);                                          // reset for the next open
+                RootXf.ScaleX = RootXf.ScaleY = 1; RootXf.TranslateY = 0;
             });
-        }
         else AppWindow.Hide();
     }
 
-    private void Animate(Windows.Graphics.RectInt32 a, Windows.Graphics.RectInt32 b, bool opening, Action? done)
+    private void AnimateWindow(bool opening, Action? done)
     {
         _animating = true;
-        var ms = 380.0 * 100 / Math.Clamp(_h.Settings.Current.AnimationSpeedPercent, 25, 400);
+        var ms = (opening ? 300.0 : 200.0) * 100 / Math.Clamp(_h.Settings.Current.AnimationSpeedPercent, 25, 400);
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var timer = DispatcherQueue.CreateTimer();
         timer.Interval = TimeSpan.FromMilliseconds(15);
@@ -374,13 +353,15 @@ public sealed partial class MainWindow : Window
         {
             var k = Math.Min(1.0, sw.Elapsed.TotalMilliseconds / ms);
             var e = opening ? 1 - Math.Pow(1 - k, 3) : k * k * k;                            // ease-out when opening, ease-in when closing
-            AppWindow.MoveAndResize(Lerp(a, b, e));
-            Root.Opacity = opening ? e : 1 - e;
+            var p = opening ? e : 1 - e;                                                     // 0 = hidden ... 1 = fully shown
+            Platform.SetWindowAlpha(this, (byte)Math.Clamp(p * 255, 0, 255));
+            RootXf.ScaleX = RootXf.ScaleY = 0.95 + 0.05 * p;
+            RootXf.TranslateY = (1 - p) * 22;
             if (k < 1) return;
             timer.Stop();
             _animating = false;
             done?.Invoke();
-            if (opening) RememberNormal();
+            if (opening) { Platform.SetWindowAlpha(this, 255); RememberNormal(); }
         };
         timer.Start();
     }
@@ -414,6 +395,49 @@ public sealed partial class MainWindow : Window
         _bgSb = sb;
         sb.Begin();
     }
+
+    // ---------- startup animation ----------
+    private Storyboard? _introSb, _introSpin;
+
+    private void PlayIntro()
+    {
+        if (!_h.Settings.Current.IntroAnimation) return;
+        IntroOverlay.Visibility = Visibility.Visible; IntroOverlay.Opacity = 1;
+        var main = new Storyboard(); var spin = new Storyboard();
+        void Add(Storyboard sb, DependencyObject t, string prop, double from, double to, double begin, double seconds, EasingFunctionBase? ease = null, bool dependent = false, bool forever = false)
+        {
+            var a = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+            {
+                From = from, To = to, BeginTime = TimeSpan.FromSeconds(begin), Duration = new Duration(TimeSpan.FromSeconds(seconds)),
+                EasingFunction = ease, EnableDependentAnimation = dependent
+            };
+            if (forever) a.RepeatBehavior = RepeatBehavior.Forever;
+            Storyboard.SetTarget(a, t); Storyboard.SetTargetProperty(a, prop); sb.Children.Add(a);
+        }
+        var outCubic = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var back = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.35 };
+        Add(main, IntroOrb, "Opacity", 0, 1, 0.05, 0.6, outCubic);
+        Add(main, IntroOrbXf, "ScaleX", 0.5, 1, 0.05, 0.9, back); Add(main, IntroOrbXf, "ScaleY", 0.5, 1, 0.05, 0.9, back);
+        Add(main, IntroTitle, "Opacity", 0, 1, 0.55, 0.7, outCubic);
+        Add(main, IntroTitleXf, "TranslateY", 14, 0, 0.55, 0.7, outCubic);
+        Add(main, IntroTitle, "CharacterSpacing", 700, 260, 0.55, 1.5, outCubic, dependent: true);
+        Add(main, IntroSub, "Opacity", 0, 0.85, 1.1, 0.6, outCubic);
+        Add(main, IntroBar, "Width", 0, 260, 0.3, 1.9, new CubicEase { EasingMode = EasingMode.EaseInOut }, dependent: true);
+        Add(main, IntroOverlay, "Opacity", 1, 0, 2.45, 0.55, new CubicEase { EasingMode = EasingMode.EaseIn });      // fade out, revealing the app
+        Add(spin, IntroRing1Xf, "Angle", 0, 360, 0, 7, null, false, true);
+        Add(spin, IntroRing2Xf, "Angle", 360, 0, 0, 11, null, false, true);
+        main.Completed += (_, _) => FinishIntro();
+        _introSb = main; _introSpin = spin;
+        spin.Begin(); main.Begin();
+    }
+
+    private void FinishIntro()
+    {
+        _introSb?.Stop(); _introSpin?.Stop(); _introSb = _introSpin = null;
+        IntroOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private void Intro_Tapped(object sender, TappedRoutedEventArgs e) => FinishIntro();           // click to skip
 
     private void ApplyBackgroundStretch()
     {
@@ -450,7 +474,9 @@ public sealed partial class MainWindow : Window
     {
         var scale = Root.XamlRoot?.RasterizationScale ?? 1.0;
         double w = bi.PixelWidth / scale, h = bi.PixelHeight / scale;
-        var k = Math.Min(1.0, 380.0 / Math.Max(w, h));
+        var longest = Math.Max(w, h);
+        var target = Math.Clamp(longest * 4, 240, 340);            // icons are enlarged to fill the tile (aspect ratio kept); big covers are reduced
+        var k = target / longest;
         BgArt.Width = Math.Max(48, w * k); BgArt.Height = Math.Max(48, h * k);
     }
 

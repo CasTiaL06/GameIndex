@@ -318,9 +318,9 @@
                     <FontIcon Glyph="&#xE7FC;" FontSize="56" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Grid>
                 <StackPanel Spacing="10" HorizontalAlignment="Center">
-                    <TextBlock x:Name="IntroTitle" Text="GAMEINDEX" FontFamily="Segoe UI Variable Display" FontSize="44" FontWeight="SemiBold" CharacterSpacing="700" Opacity="0"
+                    <TextBlock x:Name="IntroTitle" Text="GAMEINDEX" FontFamily="Segoe UI Variable Display" FontSize="44" FontWeight="SemiBold" CharacterSpacing="260" Opacity="0" RenderTransformOrigin="0.5,0.5"
                                HorizontalAlignment="Center" Foreground="{StaticResource OnArtTextBrush}">
-                        <TextBlock.RenderTransform><CompositeTransform x:Name="IntroTitleXf" TranslateY="14" /></TextBlock.RenderTransform>
+                        <TextBlock.RenderTransform><CompositeTransform x:Name="IntroTitleXf" TranslateY="14" ScaleX="1.15" ScaleY="1.15" /></TextBlock.RenderTransform>
                     </TextBlock>
                     <TextBlock x:Name="IntroSub" Text="YOUR GAMES · ONE PLACE" FontSize="12" CharacterSpacing="300" Opacity="0" HorizontalAlignment="Center" Foreground="{StaticResource OnArtSecondaryBrush}" />
                 </StackPanel>

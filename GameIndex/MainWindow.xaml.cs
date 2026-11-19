@@ -402,7 +402,22 @@ public sealed partial class MainWindow : Window
     private void PlayIntro()
     {
         if (!_h.Settings.Current.IntroAnimation) return;
+        try { PlayIntroCore(); }
+        catch (Exception ex)
+        {
+            Log.Error("Startup animation failed; skipping it", ex);
+            FinishIntro();                                    // an animation problem must never leave the cover on screen
+        }
+    }
+
+    private void PlayIntroCore()
+    {
         IntroOverlay.Visibility = Visibility.Visible; IntroOverlay.Opacity = 1;
+        // watchdog: whatever happens, the cover is gone after 5 seconds
+        var guard = DispatcherQueue.CreateTimer();
+        guard.Interval = TimeSpan.FromSeconds(5); guard.IsRepeating = false;
+        guard.Tick += (_, _) => { guard.Stop(); if (IntroOverlay.Visibility == Visibility.Visible) FinishIntro(); };
+        guard.Start();
         var main = new Storyboard(); var spin = new Storyboard();
         void Add(Storyboard sb, DependencyObject t, string prop, double from, double to, double begin, double seconds, EasingFunctionBase? ease = null, bool dependent = false, bool forever = false)
         {
@@ -420,7 +435,7 @@ public sealed partial class MainWindow : Window
         Add(main, IntroOrbXf, "ScaleX", 0.5, 1, 0.05, 0.9, back); Add(main, IntroOrbXf, "ScaleY", 0.5, 1, 0.05, 0.9, back);
         Add(main, IntroTitle, "Opacity", 0, 1, 0.55, 0.7, outCubic);
         Add(main, IntroTitleXf, "TranslateY", 14, 0, 0.55, 0.7, outCubic);
-        Add(main, IntroTitle, "CharacterSpacing", 700, 260, 0.55, 1.5, outCubic, dependent: true);
+        Add(main, IntroTitleXf, "ScaleX", 1.15, 1, 0.55, 1.2, outCubic); Add(main, IntroTitleXf, "ScaleY", 1.15, 1, 0.55, 1.2, outCubic);
         Add(main, IntroSub, "Opacity", 0, 0.85, 1.1, 0.6, outCubic);
         Add(main, IntroBar, "Width", 0, 260, 0.3, 1.9, new CubicEase { EasingMode = EasingMode.EaseInOut }, dependent: true);
         Add(main, IntroOverlay, "Opacity", 1, 0, 2.45, 0.55, new CubicEase { EasingMode = EasingMode.EaseIn });      // fade out, revealing the app
@@ -433,7 +448,9 @@ public sealed partial class MainWindow : Window
 
     private void FinishIntro()
     {
-        _introSb?.Stop(); _introSpin?.Stop(); _introSb = _introSpin = null;
+        try { _introSb?.Stop(); _introSpin?.Stop(); } catch { }
+        _introSb = _introSpin = null;
+        IntroOverlay.Opacity = 1;
         IntroOverlay.Visibility = Visibility.Collapsed;
     }
 

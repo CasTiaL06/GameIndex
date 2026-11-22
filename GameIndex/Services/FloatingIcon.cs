@@ -84,6 +84,9 @@ public sealed class FloatingIcon : IDisposable
     [DllImport("gdiplus.dll")] private static extern int GdipDrawImageRect(IntPtr g, IntPtr image, float x, float y, float w, float h);
     [DllImport("gdiplus.dll")] private static extern int GdipCreatePen1(uint argb, float width, int unit, out IntPtr pen);
     [DllImport("gdiplus.dll")] private static extern int GdipDeletePen(IntPtr pen);
+    [DllImport("gdiplus.dll")] private static extern int GdipCreateSolidFill(uint argb, out IntPtr brush);
+    [DllImport("gdiplus.dll")] private static extern int GdipDeleteBrush(IntPtr brush);
+    [DllImport("gdiplus.dll")] private static extern int GdipFillEllipse(IntPtr g, IntPtr brush, float x, float y, float w, float h);
     [DllImport("gdiplus.dll")] private static extern int GdipDrawEllipse(IntPtr g, IntPtr pen, float x, float y, float w, float h);
 
     private const uint WS_POPUP = 0x80000000, WS_EX_TOPMOST = 0x8, WS_EX_TOOLWINDOW = 0x80, WS_EX_LAYERED = 0x80000, WS_EX_NOACTIVATE = 0x08000000;
@@ -206,6 +209,7 @@ public sealed class FloatingIcon : IDisposable
         var dir = Path.Combine(AppContext.BaseDirectory, "Assets", "FloatingIcons");
         if (GdipCreateBitmapFromFile(Path.Combine(dir, id + "_base.png"), out var b) == 0) _base = b;
         if (GdipCreateBitmapFromFile(Path.Combine(dir, id + "_ring.png"), out var r) == 0) _ring = r;
+        if (_base == IntPtr.Zero && id != "g_neon") { Log.Warn($"Floating icon style '{id}' not found in {dir}; using g_neon"); LoadStyle("g_neon"); return; }
         if (_base == IntPtr.Zero) Log.Warn($"Floating icon style '{id}' not found in {dir}");
     }
 
@@ -259,46 +263,115 @@ public sealed class FloatingIcon : IDisposable
         return (c.R, c.G, c.B);
     }
 
+    private void Dot(float x, float y, float r, int alpha, (int R, int G, int B) col)
+    {
+        if (alpha <= 0 || GdipCreateSolidFill(Argb(Math.Min(255, alpha), col.R, col.G, col.B), out var br) != 0) return;
+        GdipFillEllipse(_g, br, x - r, y - r, 2 * r, 2 * r);
+        GdipDeleteBrush(br);
+    }
+
+    private void Ripple(float c, float orb, double phase, (int R, int G, int B) col, float width, int maxAlpha, float grow)
+    {
+        var r = (float)(orb * 0.5 * (1 + grow * phase));
+        var alpha = (int)((1 - phase) * (1 - phase) * maxAlpha);
+        if (alpha > 0 && GdipCreatePen1(Argb(alpha, col.R, col.G, col.B), width, 2, out var pen) == 0)
+        {
+            GdipDrawEllipse(_g, pen, c - r, c - r, 2 * r, 2 * r);
+            GdipDeletePen(pen);
+        }
+    }
+
+    /// <summary>
+    /// One frame. Animation styles: classic (ripples + bobbing + rotating ring), breathe, float, flip (coin flip every few seconds),
+    /// orbit (glowing dots circle the icon), ripples (three strong waves), sparkle (twinkling stars), jelly (squash and stretch bounce).
+    /// </summary>
     private void Render()
     {
         if (_g == IntPtr.Zero) return;
         var t = _clock.Elapsed.TotalSeconds;
         float c = _winPx / 2f, orb = _iconPx;
+        var accent = Accent();
+        var white = (255, 255, 255);
+        var violet = (139, 124, 255);
         GdipGraphicsClear(_g, 0);
         GdipResetWorldTransform(_g);
-
-        // expanding ripples
-        var (ar, ag, ab) = Accent();
-        for (var k = 0; k < 2; k++)
-        {
-            var phase = (t / 2.8 + k * 0.5) % 1.0;
-            var r = (float)(orb * 0.5 * (1 + 0.62 * phase));
-            var alpha = (int)((1 - phase) * (1 - phase) * 150);
-            if (GdipCreatePen1(Argb(alpha, ar, ag, ab), Math.Max(1.5f, orb * 0.02f), 2, out var pen) == 0)
-            {
-                GdipDrawEllipse(_g, pen, c - r, c - r, 2 * r, 2 * r);
-                GdipDeletePen(pen);
-            }
-        }
-
         _hoverV += ((_hover ? 1f : 0f) - _hoverV) * 0.18f;
-        var pulse = 1f + 0.025f * (float)Math.Sin(t * 2.4) + 0.08f * _hoverV;
-        var bob = (float)Math.Sin(t * 1.9) * orb * 0.018f;
+
+        float sx = 1, sy = 1, bob = 0, rot = 0, ringSpeed = 28;
+        var anim = _settings.FloatingAnimation;
+        switch (anim)
+        {
+            case "breathe":
+                sx = sy = 1f + 0.07f * (float)Math.Sin(t * 1.5); ringSpeed = 10;
+                Ripple(c, orb, (t / 4.0) % 1.0, accent, Math.Max(1.5f, orb * 0.02f), 120, 0.7f);
+                break;
+            case "float":
+                bob = (float)Math.Sin(t * 1.3) * orb * 0.06f; rot = (float)Math.Sin(t * 0.9) * 5f; ringSpeed = 14;
+                break;
+            case "flip":
+            {
+                var phase = (t % 4.5) / 1.1;                                            // a quick coin flip, then rest
+                if (phase < 1) sx = Math.Max(0.03f, Math.Abs((float)Math.Cos(phase * Math.PI)));
+                bob = (float)Math.Sin(t * 1.6) * orb * 0.02f; ringSpeed = 20;
+                break;
+            }
+            case "orbit":
+            {
+                bob = (float)Math.Sin(t * 1.7) * orb * 0.015f; ringSpeed = 12;
+                var cols = new[] { accent, white, violet };
+                for (var i = 0; i < 3; i++)
+                {
+                    var a = t * (1.3 + 0.45 * i) + i * 2.1; var rad = orb * (0.62 + 0.05 * i);
+                    float x = c + (float)Math.Cos(a) * rad, y = c + (float)Math.Sin(a) * rad * 0.92;
+                    Dot(x, y, orb * 0.075f, 70, cols[i]); Dot(x, y, orb * 0.032f, 255, cols[i]);
+                }
+                break;
+            }
+            case "ripples":
+                sx = sy = 1f + 0.025f * (float)Math.Sin(t * 2.2); ringSpeed = 0;
+                for (var k = 0; k < 3; k++) Ripple(c, orb, (t / 2.2 + k / 3.0) % 1.0, accent, Math.Max(2f, orb * 0.03f), 200, 0.85f);
+                break;
+            case "sparkle":
+                sx = sy = 1f + 0.03f * (float)Math.Sin(t * 1.8); ringSpeed = 16;
+                for (var i = 0; i < 9; i++)
+                {
+                    var a = i * (Math.PI * 2 / 9) + t * 0.12; var rad = orb * (0.64 + 0.08 * ((i * 37) % 5) / 4.0);
+                    var tw = 0.5 + 0.5 * Math.Sin(t * (1.6 + (i % 3) * 0.5) + i * 1.7);
+                    float x = c + (float)Math.Cos(a) * rad, y = c + (float)Math.Sin(a) * rad;
+                    Dot(x, y, orb * (0.03f + 0.03f * (float)tw), (int)(60 * tw), white); Dot(x, y, orb * (0.012f + 0.012f * (float)tw), (int)(255 * tw), white);
+                }
+                break;
+            case "jelly":
+            {
+                var w = (float)Math.Sin(t * 4.4);
+                sx = 1f + 0.08f * w; sy = 1f - 0.08f * w;
+                bob = -(float)Math.Abs(Math.Sin(t * 2.2)) * orb * 0.06f; ringSpeed = 22;
+                break;
+            }
+            default:                                                                  // classic
+                sx = sy = 1f + 0.025f * (float)Math.Sin(t * 2.4);
+                bob = (float)Math.Sin(t * 1.9) * orb * 0.018f;
+                for (var k = 0; k < 2; k++) Ripple(c, orb, (t / 2.8 + k * 0.5) % 1.0, accent, Math.Max(1.5f, orb * 0.02f), 150, 0.62f);
+                break;
+        }
+        var hover = 1f + 0.08f * _hoverV;
+        sx *= hover; sy *= hover;
         var side = orb * 1.2f;
 
         if (_base != IntPtr.Zero)
         {
             GdipResetWorldTransform(_g);
             GdipTranslateWorldTransform(_g, c, c + bob, 0);
-            GdipScaleWorldTransform(_g, pulse, pulse, 0);
+            if (rot != 0) GdipRotateWorldTransform(_g, rot, 0);
+            GdipScaleWorldTransform(_g, sx, sy, 0);
             GdipDrawImageRect(_g, _base, -side / 2, -side / 2, side, side);
         }
         if (_ring != IntPtr.Zero)
         {
             GdipResetWorldTransform(_g);
             GdipTranslateWorldTransform(_g, c, c + bob * 0.5f, 0);
-            GdipRotateWorldTransform(_g, (float)(t * 28 % 360), 0);
-            GdipScaleWorldTransform(_g, pulse, pulse, 0);
+            GdipRotateWorldTransform(_g, (float)(t * ringSpeed % 360), 0);
+            GdipScaleWorldTransform(_g, Math.Max(sx, sy), Math.Max(sx, sy), 0);
             GdipDrawImageRect(_g, _ring, -side / 2, -side / 2, side, side);
         }
         GdipResetWorldTransform(_g);

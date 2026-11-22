@@ -190,3 +190,13 @@ Other platforms / when the platform reports none: an **estimate** from `DLC`, `A
 * **Startup animation** (toggle in Settings; click to skip) plays together with the startup sound.
 * **12 desktop icon styles**. Icons in cards/tiles are enlarged to fill their space with the aspect ratio kept and tinted with the icon's own colour.
 * **Global hotkey** explanation added next to the setting.
+
+## Round 7
+* **Open/close smoothness**: the window animation is a Storyboard (compositor thread, whole tree cached as one bitmap while it runs); while Settings or
+  Game Details cover the window, the library views underneath are switched off completely (`LibraryHost`), so heavy pages no longer drop frames.
+* **Steam achievements**: XML view → HTML achievements page fallback; HTTP 429 (rate limit) is detected and backed off for 15 min; bulk background
+  refresh is limited to 6 games per pass (most recently played first). The refresh message now states what was found and why something is missing.
+* **Desktop icon**: 12 new styles (6 with a geometric "G": Neon, Gradient, Orb, Hex, Shield, Minimal; plus Planet, Crystal, Star, Atom, Pad, Ember) and
+  8 animations (Classic, Breathe, Float, Flip, Orbit, Ripples, Sparkle, Jelly). Regenerate with `tools/generate_icons.py`.
+* **Fit mode**: the hero image is reflected below itself, so the lower half of a tall/maximized window is no longer black.
+* **Startup animation**: fixed an invalid animation that left the cover on screen; there is now a 5 s watchdog.

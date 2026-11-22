@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Microsoft.Win32;
 
@@ -324,18 +325,84 @@ public sealed class SteamIntegration : PlatformIntegrationBase
         return items.Count == 0 ? Result<AchievementData>.Fail("This game has no Steam achievements (or its stats are not public).") : new Result<AchievementData>(new AchievementData(items));
     }
 
+    private static DateTime _rateLimitedUntil = DateTime.MinValue;      // Steam answered 429: stop asking for a while
+
+    private static async Task<string> GetPageAsync(HttpClient http, string url, CancellationToken ct)
+    {
+        if (DateTime.UtcNow < _rateLimitedUntil) throw new HttpRequestException("rate limited", null, System.Net.HttpStatusCode.TooManyRequests);
+        using var resp = await http.GetAsync(url, ct);
+        if (resp.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+        {
+            _rateLimitedUntil = DateTime.UtcNow.AddMinutes(15);
+            throw new HttpRequestException("rate limited", null, resp.StatusCode);
+        }
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadAsStringAsync(ct);
+    }
+
+    /// <summary>Fallback when the XML view is unavailable: the public achievements page (HTML). Rows without an unlock time are locked.</summary>
+    public static Result<AchievementData> ParseCommunityAchievementsHtml(string html)
+    {
+        if (html.Contains("profile is private", StringComparison.OrdinalIgnoreCase))
+            return Result<AchievementData>.Fail("Your Steam profile's stats are not public. Set Game details to Public (no API key needed).");
+        static string Clean(string s) => System.Net.WebUtility.HtmlDecode(Regex.Replace(s, "<[^>]+>", "")).Trim();
+        var items = new List<AchievementRecord>();
+        foreach (var row in Regex.Split(html, "<div class=\"achieveRow", RegexOptions.IgnoreCase).Skip(1))
+        {
+            var name = Regex.Match(row, "<h3[^>]*>(.*?)</h3>", RegexOptions.Singleline);
+            if (!name.Success) continue;
+            var desc = Regex.Match(row, "<h5[^>]*>(.*?)</h5>", RegexOptions.Singleline);
+            var img = Regex.Match(row, "<img[^>]+src=\"([^\"]+)\"");
+            var title = Clean(name.Groups[1].Value);
+            var icon = img.Success ? img.Groups[1].Value : null;
+            items.Add(new AchievementRecord(title, title, desc.Success ? Clean(desc.Groups[1].Value) : null, icon, icon, row.Contains("achieveUnlockTime"), null));
+        }
+        return items.Count == 0
+            ? Result<AchievementData>.Fail("This game has no Steam achievements (or its stats are not public).")
+            : new Result<AchievementData>(new AchievementData(items));
+    }
+
     private async Task<Result<AchievementData>> CommunityAchievementsAsync(Game g, IntegrationContext x, string steamId, CancellationToken ct)
     {
+        var detail = "";
+        var baseUrl = $"https://steamcommunity.com/profiles/{steamId}/stats/{g.ExternalId}/";
         try
         {
-            var xml = await x.Http.GetStringAsync($"https://steamcommunity.com/profiles/{steamId}/stats/{g.ExternalId}/?xml=1", ct);
-            var r = ParseCommunityAchievements(xml);
-            if (!r.Ok && r.Reason?.Contains("not public", StringComparison.OrdinalIgnoreCase) == true) _privateUntil = DateTime.UtcNow.AddMinutes(30);
-            return r;
+            // 1) XML view
+            try
+            {
+                var xml = await GetPageAsync(x.Http, baseUrl + "?xml=1&l=english", ct);
+                var r = ParseCommunityAchievements(xml);
+                if (r.Ok) return r;
+                if (r.Reason?.Contains("not public", StringComparison.OrdinalIgnoreCase) == true) { _privateUntil = DateTime.UtcNow.AddMinutes(30); return r; }
+                detail = r.Reason ?? "empty answer";
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests) { throw; }
+            catch (Exception ex) { detail = DescribeError(ex); Log.Warn($"Steam achievements XML failed for {g.ExternalId}: {detail}"); }
+
+            // 2) HTML page
+            try
+            {
+                var html = await GetPageAsync(x.Http, baseUrl + "achievements/?l=english", ct);
+                var r = ParseCommunityAchievementsHtml(html);
+                if (r.Ok) return r;
+                if (r.Reason?.Contains("not public", StringComparison.OrdinalIgnoreCase) == true) { _privateUntil = DateTime.UtcNow.AddMinutes(30); return r; }
+                detail = r.Reason ?? detail;
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests) { throw; }
+            catch (Exception ex) { detail = DescribeError(ex); Log.Warn($"Steam achievements page failed for {g.ExternalId}: {detail}"); }
         }
-        catch (OperationCanceledException) { throw; }
-        catch (Exception ex) { Log.Warn("Steam community achievements failed: " + ex.GetType().Name); return Result<AchievementData>.Fail("Could not read Steam achievements from your public profile."); }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+        {
+            return Result<AchievementData>.Fail("Steam is rate limiting requests right now. Try again in a few minutes.");
+        }
+        return Result<AchievementData>.Fail($"Could not read Steam achievements ({detail}).");
     }
+
+    private static string DescribeError(Exception ex) =>
+        ex is HttpRequestException { StatusCode: { } sc } ? $"HTTP {(int)sc}" : ex.GetType().Name;
 
     private async Task<Result<AchievementData>> ApiAchievementsAsync(Game g, IntegrationContext x, string steamId, CancellationToken ct)
     {

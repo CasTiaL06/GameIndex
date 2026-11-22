@@ -75,6 +75,8 @@ public sealed partial class MainWindow : Window
         _hotkey.Pressed += () => DispatcherQueue.TryEnqueue(ToggleMain);
         _settingsVm.ResetIconRequested += () => { _floating?.ResetPosition(); _h.Settings.Save(); };
         _defaultFallback = FallbackGradient.Fill;
+        BackgroundHost.SizeChanged += (_, _) => LayoutMirror();
+        ViewModel.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(MainViewModel.DetailsVisibility)) UpdateOverlayState(); };
         _tray.ScanRequested += () => DispatcherQueue.TryEnqueue(() => _ = ViewModel.ScanNowAsync());
         _tray.ExitRequested += () => DispatcherQueue.TryEnqueue(() => { _exiting = true; Close(); });
 
@@ -311,8 +313,7 @@ public sealed partial class MainWindow : Window
         {
             // The window never changes size while animating (that caused the lag and a stray small frame): it appears at full size, fully transparent,
             // then fades in while the content eases in from slightly smaller / lower.
-            Platform.SetWindowAlpha(this, 0);
-            RootXf.ScaleX = RootXf.ScaleY = 0.95; RootXf.TranslateY = 22;
+            Root.Opacity = 0; RootXf.ScaleX = RootXf.ScaleY = 0.97; RootXf.TranslateY = 16;
             AppWindow.Show(); Activate(); Platform.Foreground(this);
             AnimateWindow(opening: true, done: null);
         }
@@ -332,38 +333,50 @@ public sealed partial class MainWindow : Window
 
         var maximized = AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Maximized };
         if (!maximized && animate && s.AnimationsEnabled)
-            AnimateWindow(opening: false, done: () =>
-            {
-                AppWindow.Hide();
-                Platform.SetWindowAlpha(this, 255);                                          // reset for the next open
-                RootXf.ScaleX = RootXf.ScaleY = 1; RootXf.TranslateY = 0;
-            });
+            AnimateWindow(opening: false, done: () => AppWindow.Hide());
         else AppWindow.Hide();
     }
 
+    /// <summary>
+    /// Open/close as a Storyboard (opacity + scale + slide): these run on the compositor thread, so they stay smooth even while the UI thread is busy,
+    /// and the whole tree is cached as one bitmap during the animation so a heavy page (Settings) is not re-rendered every frame.
+    /// </summary>
     private void AnimateWindow(bool opening, Action? done)
     {
         _animating = true;
-        var ms = (opening ? 300.0 : 200.0) * 100 / Math.Clamp(_h.Settings.Current.AnimationSpeedPercent, 25, 400);
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        var timer = DispatcherQueue.CreateTimer();
-        timer.Interval = TimeSpan.FromMilliseconds(15);
-        timer.IsRepeating = true;
-        timer.Tick += (_, _) =>
+        var ms = (opening ? 260.0 : 170.0) * 100 / Math.Clamp(_h.Settings.Current.AnimationSpeedPercent, 25, 400);
+        var sb = new Storyboard();
+        void Add(DependencyObject target, string prop, double from, double to)
         {
-            var k = Math.Min(1.0, sw.Elapsed.TotalMilliseconds / ms);
-            var e = opening ? 1 - Math.Pow(1 - k, 3) : k * k * k;                            // ease-out when opening, ease-in when closing
-            var p = opening ? e : 1 - e;                                                     // 0 = hidden ... 1 = fully shown
-            Platform.SetWindowAlpha(this, (byte)Math.Clamp(p * 255, 0, 255));
-            RootXf.ScaleX = RootXf.ScaleY = 0.95 + 0.05 * p;
-            RootXf.TranslateY = (1 - p) * 22;
-            if (k < 1) return;
-            timer.Stop();
+            var a = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+            {
+                From = from, To = to, Duration = new Duration(TimeSpan.FromMilliseconds(ms)),
+                EasingFunction = new CubicEase { EasingMode = opening ? EasingMode.EaseOut : EasingMode.EaseIn }
+            };
+            Storyboard.SetTarget(a, target); Storyboard.SetTargetProperty(a, prop); sb.Children.Add(a);
+        }
+        Add(Root, "Opacity", opening ? 0 : 1, opening ? 1 : 0);
+        Add(RootXf, "ScaleX", opening ? 0.97 : 1, opening ? 1 : 0.97); Add(RootXf, "ScaleY", opening ? 0.97 : 1, opening ? 1 : 0.97);
+        Add(RootXf, "TranslateY", opening ? 16 : 0, opening ? 0 : 12);
+
+        var finished = false;
+        void Finish()
+        {
+            if (finished) return;
+            finished = true;
+            try { sb.Stop(); } catch { }
+            done?.Invoke();                                    // closing: hide the window first ...
+            Root.CacheMode = null;                             // ... then reset everything for the next open
+            Root.Opacity = 1; RootXf.ScaleX = RootXf.ScaleY = 1; RootXf.TranslateY = 0;
             _animating = false;
-            done?.Invoke();
-            if (opening) { Platform.SetWindowAlpha(this, 255); RememberNormal(); }
-        };
-        timer.Start();
+            if (opening) RememberNormal();
+        }
+        Root.CacheMode = new BitmapCache();
+        sb.Completed += (_, _) => Finish();
+        var guard = DispatcherQueue.CreateTimer();             // safety net: never leave the window half-animated
+        guard.Interval = TimeSpan.FromMilliseconds(ms + 800); guard.IsRepeating = false;
+        guard.Tick += (_, _) => { guard.Stop(); Finish(); };
+        sb.Begin(); guard.Start();
     }
 
     // ---------- background cross-fade ----------
@@ -375,6 +388,7 @@ public sealed partial class MainWindow : Window
             src = new BitmapImage(new Uri(custom)) { DecodePixelWidth = 1920 };
         if (ReferenceEquals(src, _currentBg)) return;
         _currentBg = src;
+        UpdateMirror(src);
 
         if (_bgSb is not null) { _bgSb.Stop(); if (BgB.Source is not null) BgA.Source = BgB.Source; BgB.Opacity = 0; BgA.Opacity = 1; }
         if (!animate || !_h.Settings.Current.AnimationsEnabled) { BgA.Source = src; BgA.Opacity = 1; BgB.Source = null; BgB.Opacity = 0; return; }
@@ -608,9 +622,42 @@ public sealed partial class MainWindow : Window
     {
         ViewModel.CloseDetails(); CloseQuick();
         SettingsHost.Visibility = Visibility.Visible; _settingsVm.Load();
+        UpdateOverlayState();
         DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => Loc.Apply(SettingsHost));
     }
-    private void HideSettings() => SettingsHost.Visibility = Visibility.Collapsed;
+
+    private void HideSettings() { SettingsHost.Visibility = Visibility.Collapsed; UpdateOverlayState(); }
+
+    /// <summary>While Settings or Game Details cover the window, the library views underneath are switched off completely (no hidden rendering = no fps drops).</summary>
+    private void UpdateOverlayState()
+    {
+        var covered = SettingsHost.Visibility == Visibility.Visible || ViewModel.DetailsVisibility == Visibility.Visible;
+        var wanted = covered ? Visibility.Collapsed : Visibility.Visible;
+        if (LibraryHost.Visibility == wanted) return;
+        LibraryHost.Visibility = wanted;
+        if (!covered) DispatcherQueue.TryEnqueue(CenterSelected);
+    }
+
+    // ---------- reflection that fills the lower half of the window (fit mode) ----------
+    private double _heroAspect;                                  // height / width of the current background image
+
+    private void UpdateMirror(ImageSource? src)
+    {
+        if (_h.Settings.Current.ArtFit == "fill" || src is not BitmapImage bi) { _heroAspect = 0; BgMirror.Source = null; BgMirror.Visibility = Visibility.Collapsed; return; }
+        BgMirror.Source = src;
+        void Apply() { if (bi.PixelWidth > 0) { _heroAspect = (double)bi.PixelHeight / bi.PixelWidth; LayoutMirror(); } }
+        if (bi.PixelWidth > 0) Apply();
+        else { void Opened(object s, RoutedEventArgs e) { bi.ImageOpened -= Opened; Apply(); } bi.ImageOpened += Opened; }
+    }
+
+    private void LayoutMirror()
+    {
+        var w = BackgroundHost.ActualWidth; var hostH = BackgroundHost.ActualHeight;
+        var h = w * _heroAspect;
+        if (_heroAspect <= 0 || w <= 0 || h >= hostH - 4) { BgMirror.Visibility = Visibility.Collapsed; return; }   // the image already fills the window
+        BgMirror.Width = w; BgMirror.Height = h; BgMirror.Margin = new Thickness(0, h - 1, 0, 0);
+        BgMirror.Visibility = Visibility.Visible;
+    }
     private void ScanButton_Click(object sender, RoutedEventArgs e) => _ = ViewModel.ScanNowAsync();
     private async void AddButton_Click(object sender, RoutedEventArgs e) => await ShowEditDialogAsync(null, null);
 

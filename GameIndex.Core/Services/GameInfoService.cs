@@ -63,7 +63,16 @@ public sealed class GameInfoService
         if (kinds.HasFlag(RefreshKind.Achievements)) { var r = await _ach.RefreshAsync(g, Ctx(), ct); if (!r.Ok) notes.Add("Achievements: " + r.Reason); }
 
         GameUpdated?.Invoke(id);
-        return string.Join(" ", notes);
+
+        // an honest summary: what was actually found, and why something is missing
+        var u = _db.GetGame(id) ?? g;
+        var parts = new List<string>();
+        if (kinds.HasFlag(RefreshKind.Size) && u.SizeBytes is long bytes2) parts.Add(Format.Size(bytes2));
+        if (kinds.HasFlag(RefreshKind.Stats) && !u.IsManual) parts.Add("playtime " + Format.Duration(u.TotalPlaytimeSeconds));
+        if (kinds.HasFlag(RefreshKind.Dlc)) parts.Add(u.DlcInstalled is int dn ? $"{dn} DLC" + (u.DlcSource == "folders" ? " (estimate)" : "") : "DLC unavailable");
+        if (kinds.HasFlag(RefreshKind.Achievements)) parts.Add(u.AchUnlocked is int au && u.AchTotal is int at2 ? $"achievements {au}/{at2}" : "achievements unavailable");
+        var summary = parts.Count == 0 ? $"{u.Title} refreshed." : $"{u.Title}: " + string.Join(" • ", parts);
+        return notes.Count == 0 ? summary : summary + " — " + string.Join(" ", notes);
     }
 
     /// <summary>Fills in whatever is missing or stale. Called after every library scan.</summary>
@@ -76,7 +85,8 @@ public sealed class GameInfoService
         {
             var auto = _settings.Current.AutoMetadataRefresh;
             var hasKey = !string.IsNullOrEmpty(_settings.GetSteamApiKey());
-            foreach (var g in _db.GetGames().Where(g => g.IsInstalled))
+            var achievementBudget = 6;                       // Steam rate-limits bulk requests: a few per pass, most recently played first
+            foreach (var g in _db.GetGames().Where(g => g.IsInstalled).OrderByDescending(g => g.LastPlayedUtc ?? DateTime.MinValue))
             {
                 ct.ThrowIfCancellationRequested();
                 var kinds = RefreshKind.None;
@@ -90,8 +100,9 @@ public sealed class GameInfoService
                     if (g.DlcUpdatedUtc is null || g.DlcSource is null || DateTime.UtcNow - g.DlcUpdatedUtc > TimeSpan.FromDays(1)) kinds |= RefreshKind.Dlc;   // DlcSource null = checked by an older version: re-check once
                     if (g.PlatformId == PlatformIds.Steam && (g.AchUpdatedUtc is null || DateTime.UtcNow - g.AchUpdatedUtc > TimeSpan.FromDays(1))) kinds |= RefreshKind.Achievements;
                 }
+                if (kinds.HasFlag(RefreshKind.Achievements) && achievementBudget-- <= 0) kinds &= ~RefreshKind.Achievements;
                 if (kinds == RefreshKind.None) continue;
-                try { await RefreshGameCoreAsync(g.Id, kinds, ct); await Task.Delay(120, ct); } // gentle on web APIs
+                try { await RefreshGameCoreAsync(g.Id, kinds, ct); await Task.Delay(kinds.HasFlag(RefreshKind.Achievements) ? 1500 : 120, ct); } // gentle on web APIs
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex) { Log.Warn($"Refresh of '{g.Title}' failed: {ex.Message}"); }
             }

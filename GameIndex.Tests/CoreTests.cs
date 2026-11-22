@@ -303,3 +303,24 @@ public class SteamCommunityParserTests
         Assert.False(r.Ok);
     }
 }
+
+
+public class SteamAchievementHtmlTests
+{
+    [Fact] public void Html_RowsWithUnlockTimeAreUnlocked()
+    {
+        const string html = "<div class=\"achieveRow \"><div class=\"achieveImgHolder\"><img src=\"http://x/a.jpg\"></div><div class=\"achieveTxtHolder\">" +
+            "<div class=\"achieveUnlockTime\">Unlocked 1 Jan, 2020</div><div class=\"achieveTxt\"><h3>First &amp; Best</h3><h5>Do it</h5></div></div></div>" +
+            "<div class=\"achieveRow \"><div class=\"achieveImgHolder\"><img src=\"http://x/b.jpg\"></div><div class=\"achieveTxtHolder\">" +
+            "<div class=\"achieveTxt\"><h3>Second</h3><h5>Not yet</h5></div></div></div>";
+        var r = SteamIntegration.ParseCommunityAchievementsHtml(html);
+        Assert.True(r.Ok);
+        Assert.Equal(2, r.Value!.Items.Count);
+        Assert.Equal("First & Best", r.Value.Items[0].Name);
+        Assert.True(r.Value.Items[0].Unlocked);
+        Assert.False(r.Value.Items[1].Unlocked);
+    }
+
+    [Fact] public void Html_PrivateProfile_IsUnavailable() =>
+        Assert.False(SteamIntegration.ParseCommunityAchievementsHtml("<html>This profile is private.</html>").Ok);
+}

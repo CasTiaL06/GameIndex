@@ -71,6 +71,10 @@
                     </ComboBox>
                     <Slider Header="Desktop icon size" Minimum="48" Maximum="160" Value="{x:Bind Vm.FloatingSize, Mode=TwoWay}" Width="420" HorizontalAlignment="Left" />
                     <Slider Header="Desktop icon opacity (%)" Minimum="25" Maximum="100" Value="{x:Bind Vm.FloatingOpacity, Mode=TwoWay}" Width="420" HorizontalAlignment="Left" />
+                    <ComboBox Header="Desktop icon animation" SelectedIndex="{x:Bind Vm.FloatingAnimationIndex, Mode=TwoWay}" Width="320">
+                        <ComboBoxItem Content="Classic (ripples + float)" /><ComboBoxItem Content="Breathe" /><ComboBoxItem Content="Float" /><ComboBoxItem Content="Flip" />
+                        <ComboBoxItem Content="Orbit" /><ComboBoxItem Content="Ripples" /><ComboBoxItem Content="Sparkle" /><ComboBoxItem Content="Jelly" />
+                    </ComboBox>
                     <TextBlock Text="Desktop icon style" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" />
                     <GridView ItemsSource="{x:Bind Vm.IconStyles}" SelectedIndex="{x:Bind Vm.FloatingStyleIndex, Mode=TwoWay}" SelectionMode="Single" MaxWidth="620" HorizontalAlignment="Left">
                         <GridView.ItemTemplate>

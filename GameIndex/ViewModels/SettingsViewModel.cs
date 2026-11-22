@@ -41,6 +41,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private double _floatingSize = 84;
     [ObservableProperty] private double _floatingOpacity = 92;
     [ObservableProperty] private int _floatingStyleIndex;
+    [ObservableProperty] private int _floatingAnimationIndex;
     [ObservableProperty] private bool _keepRunningInBackground = true;
     [ObservableProperty] private int _startupSoundIndex;
     [ObservableProperty] private int _artFitIndex;
@@ -48,8 +49,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private double _materialVisibility = 25;
     [ObservableProperty] private bool _introAnimation = true;
 
-    public IReadOnlyList<IconStyleItem> IconStyles { get; } = new[] { ("neon", "Neon"), ("pulse", "Pulse"), ("planet", "Planet"), ("crystal", "Crystal"), ("minimal", "Minimal"), ("gamepad", "Gamepad"),
-            ("ember", "Ember"), ("aurora", "Aurora"), ("shield", "Shield"), ("star", "Star"), ("joystick", "Joystick"), ("atom", "Atom") }
+    public IReadOnlyList<IconStyleItem> IconStyles { get; } = new[]
+        {
+            ("g_neon", "G Neon"), ("g_gradient", "G Gradient"), ("g_orb", "G Orb"), ("g_hex", "G Hex"), ("g_shield", "G Shield"), ("g_minimal", "G Minimal"),
+            ("planet", "Planet"), ("crystal", "Crystal"), ("star", "Star"), ("atom", "Atom"), ("pad", "Pad"), ("ember", "Ember")
+        }
         .Select(x => new IconStyleItem(x.Item1, x.Item2, new BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "FloatingIcons", x.Item1 + "_base.png"))) { DecodePixelWidth = 128 })).ToList();
 
     public void PreviewStartupSound() => Services.SoundService.PlayStartup(Sounds[Math.Clamp(StartupSoundIndex, 0, Sounds.Length - 1)]);
@@ -86,7 +90,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     public string BackupPath => string.IsNullOrEmpty(BackupDirectory) ? _h.Paths.BackupsDir : BackupDirectory;
     public string SteamKeyState => Services.Loc.T(string.IsNullOrEmpty(_h.Settings.GetSteamApiKey()) ? "No API key saved" : "API key saved (encrypted with Windows DPAPI)");
 
-    private static readonly string[] Themes = ["Dark", "Light", "System"], Langs = ["en", "tr", "system"], Hotkeys = ["Alt+G", "Ctrl+Alt+G", "Ctrl+Shift+G", "F9"], Modes = ["desktop", "always"], StyleIds = ["neon", "pulse", "planet", "crystal", "minimal", "gamepad", "ember", "aurora", "shield", "star", "joystick", "atom"],
+    private static readonly string[] Themes = ["Dark", "Light", "System"], Langs = ["en", "tr", "system"], Hotkeys = ["Alt+G", "Ctrl+Alt+G", "Ctrl+Shift+G", "F9"], Modes = ["desktop", "always"], StyleIds = ["g_neon", "g_gradient", "g_orb", "g_hex", "g_shield", "g_minimal", "planet", "crystal", "star", "atom", "pad", "ember"],
+        Animations = ["classic", "breathe", "float", "flip", "orbit", "ripples", "sparkle", "jelly"],
         Sounds = ["aurora", "crystal", "deep", "pulse", "retro", "zen", "off"], Fits = ["fit", "fill"], Backdrops = ["Mica", "MicaAlt", "Acrylic", "None"], Views = ["Carousel", "Grid", "List"];
 
     public SettingsViewModel(AppHost host, Action applied)
@@ -107,7 +112,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         TaskbarJumpList = s.TaskbarJumpList; HotkeyEnabled = s.HotkeyEnabled; HotkeyIndex = Math.Max(0, Array.IndexOf(Hotkeys, s.Hotkey));
         FloatingIconEnabled = s.FloatingIconEnabled; FloatingHideWhenOpen = s.FloatingHideWhenOpen;
         FloatingModeIndex = Math.Max(0, Array.IndexOf(Modes, s.FloatingMode)); FloatingSize = s.FloatingSize; FloatingOpacity = s.FloatingOpacity;
-        FloatingStyleIndex = Math.Max(0, Array.IndexOf(StyleIds, s.FloatingStyle)); KeepRunningInBackground = s.KeepRunningInBackground;
+        FloatingStyleIndex = Math.Max(0, Array.IndexOf(StyleIds, s.FloatingStyle)); FloatingAnimationIndex = Math.Max(0, Array.IndexOf(Animations, s.FloatingAnimation)); KeepRunningInBackground = s.KeepRunningInBackground;
         StartupSoundIndex = Math.Max(0, Array.IndexOf(Sounds, s.StartupSound)); ArtFitIndex = Math.Max(0, Array.IndexOf(Fits, s.ArtFit)); RoundnessIndex = Math.Clamp(s.WindowRoundness, 0, 2); MaterialVisibility = s.MaterialVisibility; IntroAnimation = s.IntroAnimation; SoundsEnabled = s.SoundsEnabled; _lastStartWithWindows = s.StartWithWindows;
         LanguageIndex = Math.Max(0, Array.IndexOf(Langs, s.Language)); TransparencyEnabled = s.TransparencyEnabled; OverlayOpacity = s.OverlayOpacityPercent; Transparency = s.TransparencyPercent;
         BackdropIndex = Math.Max(0, Array.IndexOf(Backdrops, s.Backdrop)); BackgroundDim = s.BackgroundDimPercent;
@@ -162,7 +167,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         s.TaskbarJumpList = TaskbarJumpList; s.HotkeyEnabled = HotkeyEnabled; s.Hotkey = Hotkeys[Math.Clamp(HotkeyIndex, 0, Hotkeys.Length - 1)];
         s.FloatingIconEnabled = FloatingIconEnabled; s.FloatingHideWhenOpen = FloatingHideWhenOpen;
         s.FloatingMode = Modes[Math.Clamp(FloatingModeIndex, 0, 1)]; s.FloatingSize = (int)FloatingSize; s.FloatingOpacity = (int)FloatingOpacity;
-        s.FloatingStyle = StyleIds[Math.Clamp(FloatingStyleIndex, 0, StyleIds.Length - 1)]; s.KeepRunningInBackground = KeepRunningInBackground;
+        s.FloatingStyle = StyleIds[Math.Clamp(FloatingStyleIndex, 0, StyleIds.Length - 1)]; s.FloatingAnimation = Animations[Math.Clamp(FloatingAnimationIndex, 0, Animations.Length - 1)]; s.KeepRunningInBackground = KeepRunningInBackground;
         s.StartupSound = Sounds[Math.Clamp(StartupSoundIndex, 0, Sounds.Length - 1)]; s.ArtFit = Fits[Math.Clamp(ArtFitIndex, 0, 1)]; s.WindowRoundness = Math.Clamp(RoundnessIndex, 0, 2); s.MaterialVisibility = (int)MaterialVisibility; s.IntroAnimation = IntroAnimation; s.SoundsEnabled = SoundsEnabled;
         s.StartWithWindows = StartWithWindows; s.MinimizeToTray = MinimizeToTray; s.AutoDetectGames = AutoDetect;
         s.ScanIntervalMinutes = Math.Max(1, (int)ScanInterval); s.DefaultLibraryView = Views[Math.Clamp(DefaultViewIndex, 0, 2)];

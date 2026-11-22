@@ -176,7 +176,7 @@ public static class Loc
         ["Category (optional, type to create a new one)"] = "Kategori (isteğe bağlı, yeni oluşturmak için yazın)",
         ["Custom cover image (optional)"] = "Özel kapak görseli (isteğe bağlı)", ["Custom background image (optional)"] = "Özel arka plan görseli (isteğe bağlı)",
         ["Track playtime for any process in the game's folder (for launcher EXEs that start the real game)"] = "Oyun klasöründeki herhangi bir işlem için süre takibi yap (asıl oyunu başlatan başlatıcı EXE'ler için)",
-        ["Browse…"] = "Gözat…",
+        ["Browse…"] = "Gözat…", ["Desktop icon animation"] = "Masaüstü simgesi animasyonu", ["Classic (ripples + float)"] = "Klasik (dalgalar + süzülme)", ["Breathe"] = "Nefes", ["Float"] = "Süzülme", ["Flip"] = "Çevirme", ["Orbit"] = "Yörünge", ["Ripples"] = "Dalgalar", ["Sparkle"] = "Parıltı", ["Jelly"] = "Jöle",
         ["Mica: soft, tinted by your wallpaper. Mica Alt: slightly stronger tint. Acrylic: blurred, see-through glass. None: solid colour. The material is only visible through the artwork layer, so use the slider below to let it show."] =
             "Mica: duvar kağıdınızın tonunu taşıyan yumuşak malzeme. Mica Alt: biraz daha belirgin ton. Acrylic: bulanık, saydam cam. Yok: düz renk. Malzeme yalnızca görsel katmanının arkasından görünür; görünmesi için aşağıdaki kaydırıcıyı kullanın.",
         ["Material visibility (how much of the window material shows through)"] = "Malzeme görünürlüğü (pencere malzemesinin ne kadarı görünsün)",

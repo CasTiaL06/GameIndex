@@ -31,6 +31,10 @@
     <PackageReference Include="System.Drawing.Common" Version="10.0.*" />
   </ItemGroup>
   <ItemGroup>
+    <!-- stale file from an older version, if still present in a checkout: never compile it -->
+    <Compile Remove="Services\FloatingIconWindow.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\GameIndex.Core\GameIndex.Core.csproj" />
   </ItemGroup>
   <ItemGroup>

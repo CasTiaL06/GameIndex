@@ -321,8 +321,8 @@ public sealed class FloatingIcon : IDisposable
                 var cols = new[] { accent, white, violet };
                 for (var i = 0; i < 3; i++)
                 {
-                    var a = t * (1.3 + 0.45 * i) + i * 2.1; var rad = orb * (0.62 + 0.05 * i);
-                    float x = c + (float)Math.Cos(a) * rad, y = c + (float)Math.Sin(a) * rad * 0.92;
+                    var a = t * (1.3 + 0.45 * i) + i * 2.1; var rad = (float)(orb * (0.62 + 0.05 * i));
+                    float x = c + (float)Math.Cos(a) * rad, y = c + (float)Math.Sin(a) * rad * 0.92f;
                     Dot(x, y, orb * 0.075f, 70, cols[i]); Dot(x, y, orb * 0.032f, 255, cols[i]);
                 }
                 break;
@@ -335,7 +335,7 @@ public sealed class FloatingIcon : IDisposable
                 sx = sy = 1f + 0.03f * (float)Math.Sin(t * 1.8); ringSpeed = 16;
                 for (var i = 0; i < 9; i++)
                 {
-                    var a = i * (Math.PI * 2 / 9) + t * 0.12; var rad = orb * (0.64 + 0.08 * ((i * 37) % 5) / 4.0);
+                    var a = i * (Math.PI * 2 / 9) + t * 0.12; var rad = (float)(orb * (0.64 + 0.08 * ((i * 37) % 5) / 4.0));
                     var tw = 0.5 + 0.5 * Math.Sin(t * (1.6 + (i % 3) * 0.5) + i * 1.7);
                     float x = c + (float)Math.Cos(a) * rad, y = c + (float)Math.Sin(a) * rad;
                     Dot(x, y, orb * (0.03f + 0.03f * (float)tw), (int)(60 * tw), white); Dot(x, y, orb * (0.012f + 0.012f * (float)tw), (int)(255 * tw), white);

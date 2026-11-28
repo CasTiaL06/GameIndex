@@ -51,7 +51,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public IReadOnlyList<IconStyleItem> IconStyles { get; } = new[]
         {
-            ("g_neon", "G Neon"), ("g_gradient", "G Gradient"), ("g_orb", "G Orb"), ("g_hex", "G Hex"), ("g_shield", "G Shield"), ("g_minimal", "G Minimal"),
+            ("g_ref", "Neon G Pad"), ("g_play", "G Play"), ("g_neon", "G Neon"), ("g_gradient", "G Gradient"), ("g_orb", "G Orb"), ("g_hex", "G Hex"), ("g_shield", "G Shield"), ("g_minimal", "G Minimal"),
             ("planet", "Planet"), ("crystal", "Crystal"), ("star", "Star"), ("atom", "Atom"), ("pad", "Pad"), ("ember", "Ember")
         }
         .Select(x => new IconStyleItem(x.Item1, x.Item2, new BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "FloatingIcons", x.Item1 + "_base.png"))) { DecodePixelWidth = 128 })).ToList();
@@ -90,7 +90,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public string BackupPath => string.IsNullOrEmpty(BackupDirectory) ? _h.Paths.BackupsDir : BackupDirectory;
     public string SteamKeyState => Services.Loc.T(string.IsNullOrEmpty(_h.Settings.GetSteamApiKey()) ? "No API key saved" : "API key saved (encrypted with Windows DPAPI)");
 
-    private static readonly string[] Themes = ["Dark", "Light", "System"], Langs = ["en", "tr", "system"], Hotkeys = ["Alt+G", "Ctrl+Alt+G", "Ctrl+Shift+G", "F9"], Modes = ["desktop", "always"], StyleIds = ["g_neon", "g_gradient", "g_orb", "g_hex", "g_shield", "g_minimal", "planet", "crystal", "star", "atom", "pad", "ember"],
+    private static readonly string[] Themes = ["Dark", "Light", "System"], Langs = ["en", "tr", "system"], Hotkeys = ["Alt+G", "Ctrl+Alt+G", "Ctrl+Shift+G", "F9"], Modes = ["desktop", "always"], StyleIds = ["g_ref", "g_play", "g_neon", "g_gradient", "g_orb", "g_hex", "g_shield", "g_minimal", "planet", "crystal", "star", "atom", "pad", "ember"],
         Animations = ["classic", "breathe", "float", "flip", "orbit", "ripples", "sparkle", "jelly"],
         Sounds = ["aurora", "crystal", "deep", "pulse", "retro", "zen", "off"], Fits = ["fit", "fill"], Backdrops = ["Mica", "MicaAlt", "Acrylic", "None"], Views = ["Carousel", "Grid", "List"];
 

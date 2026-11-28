@@ -65,7 +65,10 @@ public static class ThemeService
             Set("TextPrimaryBrush", Color.FromArgb(255, 0x12, 0x16, 0x1F));
             Set("TextSecondaryBrush", Color.FromArgb(255, 0x5B, 0x64, 0x72));
         }
-        Set("AccentBrush", ParseColor(s.AccentColor, Color.FromArgb(255, 0x65, 0xD9, 0xFF)));
+        var accentColor = ParseColor(s.AccentColor, Color.FromArgb(255, 0x65, 0xD9, 0xFF));
+        Set("AccentBrush", accentColor);
+        ((LinearGradientBrush)Application.Current.Resources["PlayGradientBrush"]).GradientStops[0].Color = accentColor;
+        ((LinearGradientBrush)Application.Current.Resources["NeonBorderBrush"]).GradientStops[0].Color = Color.FromArgb(0x99, accentColor.R, accentColor.G, accentColor.B);
 
         if (backdrop != _lastBackdrop)
         {

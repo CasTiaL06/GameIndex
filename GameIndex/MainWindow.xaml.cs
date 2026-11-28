@@ -75,6 +75,12 @@ public sealed partial class MainWindow : Window
         _hotkey.Pressed += () => DispatcherQueue.TryEnqueue(ToggleMain);
         _settingsVm.ResetIconRequested += () => { _floating?.ResetPosition(); _h.Settings.Save(); };
         _defaultFallback = FallbackGradient.Fill;
+        try
+        {
+            var logo = Path.Combine(AppContext.BaseDirectory, "Assets", "Brand", "logo.png");
+            if (File.Exists(logo)) { var bi = new BitmapImage(new Uri(logo)) { DecodePixelWidth = 256 }; IntroLogo.Source = bi; TitleLogo.Source = bi; }
+        }
+        catch (Exception ex) { Log.Warn("Brand logo could not be loaded: " + ex.Message); }
         BackgroundHost.SizeChanged += (_, _) => LayoutMirror();
         ViewModel.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(MainViewModel.DetailsVisibility)) UpdateOverlayState(); };
         _tray.ScanRequested += () => DispatcherQueue.TryEnqueue(() => _ = ViewModel.ScanNowAsync());

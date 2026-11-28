@@ -15,7 +15,7 @@
                        Foreground="{StaticResource OnArtTextBrush}" Opacity="0.85" Visibility="Collapsed" />
             <TextBlock x:Name="FallbackTitle" TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Bottom" Margin="8,0,8,12"
                        MaxLines="3" TextTrimming="CharacterEllipsis" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource OnArtTextBrush}" />
-            <Border x:Name="Ring" CornerRadius="18" BorderThickness="3" BorderBrush="{StaticResource AccentBrush}" Opacity="0" />
+            <Border x:Name="Ring" CornerRadius="18" BorderThickness="3" BorderBrush="{StaticResource NeonBorderBrush}" Opacity="0" />
             <FontIcon x:Name="FavIcon" Glyph="&#xEB52;" FontSize="14" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"
                       Foreground="{StaticResource AccentBrush}" Visibility="Collapsed" />
             <Ellipse x:Name="RunDot" Width="10" Height="10" Fill="#4ADE80" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="9" Visibility="Collapsed" />

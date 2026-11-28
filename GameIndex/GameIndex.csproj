@@ -41,5 +41,6 @@
     <Content Include="Assets\GameIndex.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\Sounds\*.wav" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\FloatingIcons\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\Brand\*.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

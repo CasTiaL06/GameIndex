@@ -28,7 +28,7 @@ public sealed class AppSettings
     public string FloatingMode { get; set; } = "desktop";   // desktop = only on the desktop (behind other apps) | always = on top of everything
     public int FloatingSize { get; set; } = 84;             // orb diameter in DIP
     public int FloatingOpacity { get; set; } = 92;          // percent
-    public string FloatingStyle { get; set; } = "g_neon";   // g_neon | g_gradient | g_orb | g_hex | g_shield | g_minimal | planet | crystal | star | atom | pad | ember
+    public string FloatingStyle { get; set; } = "g_ref";    // g_ref | g_play | g_neon | g_gradient | g_orb | g_hex | g_shield | g_minimal | planet | crystal | star | atom | pad | ember
     public string FloatingAnimation { get; set; } = "classic"; // classic | breathe | float | flip | orbit | ripples | sparkle | jelly
     public bool KeepRunningInBackground { get; set; } = true; // closing the window keeps tray + desktop icon + tracking alive
     public string StartupSound { get; set; } = "aurora";    // aurora | crystal | deep | pulse | retro | zen | off

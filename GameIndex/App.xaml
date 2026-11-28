@@ -23,9 +23,21 @@
             <SolidColorBrush x:Key="OnArtTextBrush" Color="#F2F4F8" />
             <SolidColorBrush x:Key="OnArtSecondaryBrush" Color="#C3CAD6" />
 
+            <!-- Neon glass language: cyan -> electric blue -> violet edges (accent stop follows the user's accent colour) -->
+            <LinearGradientBrush x:Key="NeonBorderBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#9965D9FF" Offset="0" />
+                <GradientStop Color="#664C8BFF" Offset="0.5" />
+                <GradientStop Color="#998B7CFF" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="PlayGradientBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#65D9FF" Offset="0" />
+                <GradientStop Color="#4C8BFF" Offset="0.55" />
+                <GradientStop Color="#8B7CFF" Offset="1" />
+            </LinearGradientBrush>
+
             <Style x:Key="GlassCardStyle" TargetType="Border">
                 <Setter Property="Background" Value="{StaticResource GlassPanelBrush}" />
-                <Setter Property="BorderBrush" Value="{StaticResource BorderSoftBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource NeonBorderBrush}" />
                 <Setter Property="BorderThickness" Value="1" />
                 <Setter Property="CornerRadius" Value="14" />
             </Style>
@@ -39,7 +51,7 @@
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
-                            <Grid x:Name="Root" CornerRadius="28" Background="{StaticResource AccentBrush}" Padding="34,13">
+                            <Grid x:Name="Root" CornerRadius="28" Background="{StaticResource PlayGradientBrush}" Padding="34,13">
                                 <VisualStateManager.VisualStateGroups>
                                     <VisualStateGroup x:Name="CommonStates">
                                         <VisualState x:Name="Normal" />

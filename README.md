@@ -200,3 +200,9 @@ Other platforms / when the platform reports none: an **estimate** from `DLC`, `A
   8 animations (Classic, Breathe, Float, Flip, Orbit, Ripples, Sparkle, Jelly). Regenerate with `tools/generate_icons.py`.
 * **Fit mode**: the hero image is reflected below itself, so the lower half of a tall/maximized window is no longer black.
 * **Startup animation**: fixed an invalid animation that left the cover on screen; there is now a 5 s watchdog.
+
+## Brand design (from the reference images)
+`docs/reference/` holds the two reference designs. `tools/build_reference_assets.py` cuts them out of their backgrounds:
+* **tray-icon-reference.png** → `Assets/GameIndex.ico` (exe, taskbar, tray, window icon), `Assets/Brand/logo.png` (title bar + startup animation), floating style **G Play**.
+* **floating-icon-reference.png** → floating style **Neon G Pad** (default).
+UI language: dark navy/black, cyan → electric blue → violet neon edges (`NeonBorderBrush`), gradient Play button, glass panels.
